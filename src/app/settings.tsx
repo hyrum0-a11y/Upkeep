@@ -25,7 +25,7 @@ export default function SettingsScreen() {
       return;
     }
     if (!key.trim()) {
-      setResult({ ok: false, msg: 'Paste the key from the makeKey step.' });
+      setResult({ ok: false, msg: 'Paste the key printed by setup.' });
       return;
     }
     setBusy(true);
@@ -34,7 +34,7 @@ export default function SettingsScreen() {
       const data = await testConnection({ url, key });
       await saveSettings({ url, key });
       markConfigured();
-      setResult({ ok: true, msg: `Connected. Found ${data.vehicles.length} vehicles and ${data.log.length} log entries.` });
+      setResult({ ok: true, msg: `Connected. Found ${data.items.length} items and ${data.log.length} log entries.` });
     } catch (e) {
       setResult({ ok: false, msg: (e as Error).message });
     } finally {
@@ -45,7 +45,7 @@ export default function SettingsScreen() {
   return (
     <ScrollView contentContainerStyle={styles.wrap} keyboardShouldPersistTaps="handled">
       <Text style={text.section}>Google Sheet connection</Text>
-      <Text style={text.muted}>From the sheet's Apps Script: the Web app URL (Deploy) and the key printed by makeKey. Stored only on this phone.</Text>
+      <Text style={text.muted}>From the sheet's Apps Script: the Web app URL (Deploy) and the key printed by setup. Stored only on this phone.</Text>
       <Field label="Web app URL" value={url} onChangeText={setUrl} placeholder="https://script.google.com/macros/s/…/exec" keyboardType="url" />
       <Field label="Key" value={key} onChangeText={setKey} secure />
       <Button label={busy ? 'Testing…' : 'Test & save'} onPress={testAndSave} disabled={busy} />
@@ -56,7 +56,7 @@ export default function SettingsScreen() {
       )}
 
       <Text style={text.section}>About</Text>
-      <Text style={text.muted}>Car Care · build {BUILD_NUMBER || 'dev'}</Text>
+      <Text style={text.muted}>Upkeep · build {BUILD_NUMBER || 'dev'}</Text>
     </ScrollView>
   );
 }

@@ -3,42 +3,43 @@ import { useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Banner, Button, Chip, Field, Row, text } from '../components/ui';
 import { addService, useSheet } from '../lib/api';
-import { formatMiles, isISODate, parseNumber, toISODate } from '../lib/format';
+import { formatReading, isISODate, parseNumber, toISODate } from '../lib/format';
 
 const OTHER = 'Other…';
 
 export default function AddService() {
-  const params = useLocalSearchParams<{ vehicle?: string }>();
+  const params = useLocalSearchParams<{ item?: string }>();
   const { data } = useSheet();
-  const vehicles = data?.vehicles ?? [];
-  const [vehicle, setVehicle] = useState(params.vehicle ?? (vehicles.length === 1 ? vehicles[0].name : ''));
+  const items = data?.items ?? [];
+  const [item, setItem] = useState(params.item ?? (items.length === 1 ? items[0].name : ''));
   const [service, setService] = useState('');
   const [otherName, setOtherName] = useState('');
   const [date, setDate] = useState(toISODate(new Date()));
-  const [mileage, setMileageText] = useState('');
+  const [reading, setReadingText] = useState('');
   const [cost, setCost] = useState('');
   const [shop, setShop] = useState('');
   const [notes, setNotes] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  const services = data ? data.schedule.filter((s) => s.vehicle === vehicle).map((s) => s.service) : [];
-  const current = vehicles.find((v) => v.name === vehicle)?.miles ?? null;
+  const selected = items.find((i) => i.name === item);
+  const meter = selected?.meter ?? '';
+  const services = data ? data.schedule.filter((s) => s.item === item).map((s) => s.service) : [];
   const yesterday = toISODate(new Date(Date.now() - 86_400_000));
 
   async function save() {
     const name = service === OTHER ? otherName.trim() : service;
-    const m = parseNumber(mileage);
+    const r = meter ? parseNumber(reading) : null;
     const c = parseNumber(cost);
-    if (!vehicle) return setErr('Pick a vehicle.');
+    if (!item) return setErr('Pick what was serviced.');
     if (!name) return setErr('Pick or type the service.');
     if (!isISODate(date)) return setErr('Date should look like 2026-11-20.');
-    if (Number.isNaN(m) || (m !== null && m < 0)) return setErr('Mileage must be a number.');
+    if (Number.isNaN(r) || (r !== null && r < 0)) return setErr('The reading must be a number.');
     if (Number.isNaN(c)) return setErr('Cost must be a number.');
     setBusy(true);
     setErr(null);
     try {
-      await addService({ vehicle, date, mileage: m, service: name, cost: c, shop: shop.trim(), notes: notes.trim() });
+      await addService({ item, date, reading: r, service: name, cost: c, shop: shop.trim(), notes: notes.trim() });
       router.back();
     } catch (e) {
       setErr((e as Error).message);
@@ -54,22 +55,22 @@ export default function AddService() {
         </Banner>
       )}
 
-      <Text style={text.section}>Vehicle</Text>
+      <Text style={text.section}>What was serviced</Text>
       <Row style={styles.wrapRow}>
-        {vehicles.map((v) => (
+        {items.map((i) => (
           <Chip
-            key={v.name}
-            label={v.name}
-            selected={vehicle === v.name}
+            key={i.name}
+            label={i.name}
+            selected={item === i.name}
             onPress={() => {
-              setVehicle(v.name);
+              setItem(i.name);
               setService('');
             }}
           />
         ))}
       </Row>
 
-      {vehicle ? (
+      {item ? (
         <>
           <Text style={text.section}>Service</Text>
           <Row style={styles.wrapRow}>
@@ -77,12 +78,8 @@ export default function AddService() {
               <Chip key={s} label={s} selected={service === s} onPress={() => setService(s)} />
             ))}
           </Row>
-          {service === OTHER && (
-            <Field label="What was done" value={otherName} onChangeText={setOtherName} placeholder="e.g. New battery" />
-          )}
-          {service === OTHER && (
-            <Text style={text.muted}>Only names that match the Schedule count toward due dates.</Text>
-          )}
+          {service === OTHER && <Field label="What was done" value={otherName} onChangeText={setOtherName} placeholder="e.g. New battery" />}
+          {service === OTHER && <Text style={text.muted}>Only names that match the Schedule count toward due dates.</Text>}
         </>
       ) : null}
 
@@ -92,13 +89,15 @@ export default function AddService() {
         <Chip label="Yesterday" selected={date === yesterday} onPress={() => setDate(yesterday)} />
       </Row>
       <Field label="Date (year-month-day)" value={date} onChangeText={setDate} keyboardType="numbers-and-punctuation" />
-      <Field
-        label={current !== null ? `Mileage (last: ${formatMiles(current)})` : 'Mileage'}
-        value={mileage}
-        onChangeText={setMileageText}
-        placeholder="Odometer reading"
-        keyboardType="number-pad"
-      />
+      {meter ? (
+        <Field
+          label={`${meter === 'hours' ? 'Hours' : 'Mileage'}${selected?.reading != null ? ` (last: ${formatReading(selected.reading, meter)})` : ''}`}
+          value={reading}
+          onChangeText={setReadingText}
+          placeholder={meter === 'hours' ? 'Hour meter reading' : 'Odometer reading'}
+          keyboardType="number-pad"
+        />
+      ) : null}
       <Row>
         <View style={{ flex: 1 }}>
           <Field label="Cost" value={cost} onChangeText={setCost} placeholder="0.00" keyboardType="decimal-pad" />
@@ -107,7 +106,7 @@ export default function AddService() {
           <Field label="Shop / who" value={shop} onChangeText={setShop} placeholder="e.g. Me" />
         </View>
       </Row>
-      <Field label="Notes" value={notes} onChangeText={setNotes} multiline placeholder="Parts, oil type, anything to remember" />
+      <Field label="Notes" value={notes} onChangeText={setNotes} multiline placeholder="Parts, oil or filter type, anything to remember" />
 
       <Button label={busy ? 'Saving…' : 'Save to sheet'} onPress={save} disabled={busy} style={{ marginTop: 8 }} />
     </ScrollView>

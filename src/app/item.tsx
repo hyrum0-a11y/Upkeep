@@ -2,30 +2,44 @@ import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Alert, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Banner, Button, Card, Field, Row, StatusPill, colors, text } from '../components/ui';
-import { addScheduleItem, deleteService, refresh, setMileage, useSheet } from '../lib/api';
-import { byUrgency, formatCost, formatDate, formatMiles, interval, newestFirst, nextDue, parseNumber, vehicleTitle } from '../lib/format';
+import { addScheduleItem, deleteService, refresh, setReading, useSheet } from '../lib/api';
+import {
+  byUrgency,
+  formatCost,
+  formatDate,
+  formatReading,
+  interval,
+  itemTitle,
+  meterLabel,
+  newestFirst,
+  nextDue,
+  parseNumber,
+} from '../lib/format';
 
-export default function VehicleScreen() {
+export default function ItemScreen() {
   const { name } = useLocalSearchParams<{ name: string }>();
   const { data, loading, error } = useSheet();
-  const [miles, setMiles] = useState('');
+  const [reading, setReadingText] = useState('');
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [svc, setSvc] = useState('');
-  const [everyMiles, setEveryMiles] = useState('');
+  const [every, setEvery] = useState('');
   const [everyMonths, setEveryMonths] = useState('');
 
-  const v = data?.vehicles.find((x) => x.name === name);
-  if (!data || !v) {
+  const it = data?.items.find((x) => x.name === name);
+  if (!data || !it) {
     return (
       <View style={styles.wrap}>
-        <Text style={text.muted}>{loading ? 'Loading…' : 'Vehicle not found.'}</Text>
+        <Text style={text.muted}>{loading ? 'Loading…' : 'Not found.'}</Text>
       </View>
     );
   }
-  const schedule = byUrgency(data.schedule.filter((s) => s.vehicle === v.name));
-  const history = newestFirst(data.log.filter((e) => e.vehicle === v.name));
+  const m = it.meter;
+  const unit = m === 'hours' ? 'hours' : 'miles';
+  const schedule = byUrgency(data.schedule.filter((s) => s.item === it.name));
+  const history = newestFirst(data.log.filter((e) => e.item === it.name));
+  const title = itemTitle(it);
 
   async function run(fn: () => Promise<unknown>, done?: () => void) {
     setBusy(true);
@@ -40,12 +54,12 @@ export default function VehicleScreen() {
     }
   }
 
-  const saveMiles = () => {
-    const n = parseNumber(miles);
-    if (n === null || Number.isNaN(n) || n < 0) return setMsg('Type the odometer reading as a number.');
-    const go = () => run(() => setMileage(v.name, n), () => setMiles(''));
-    if (v.miles !== null && n < v.miles) {
-      Alert.alert('Lower than before?', `The sheet says ${formatMiles(v.miles)}. Save ${formatMiles(n)} anyway?`, [
+  const saveReading = () => {
+    const n = parseNumber(reading);
+    if (n === null || Number.isNaN(n) || n < 0) return setMsg('Type the reading as a number.');
+    const go = () => run(() => setReading(it.name, n), () => setReadingText(''));
+    if (it.reading !== null && n < it.reading) {
+      Alert.alert('Lower than before?', `The sheet says ${formatReading(it.reading, m)}. Save ${formatReading(n, m)} anyway?`, [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Save', onPress: go },
       ]);
@@ -53,16 +67,16 @@ export default function VehicleScreen() {
   };
 
   const saveSchedule = () => {
-    const m = parseNumber(everyMiles);
+    const e = m ? parseNumber(every) : null;
     const mo = parseNumber(everyMonths);
     if (!svc.trim()) return setMsg('Give the service a name.');
-    if (Number.isNaN(m) || Number.isNaN(mo)) return setMsg('Miles and months must be numbers.');
-    if (m === null && mo === null) return setMsg('Add miles, months, or both.');
+    if (Number.isNaN(e) || Number.isNaN(mo)) return setMsg('Use numbers for how often.');
+    if (e === null && mo === null) return setMsg(m ? `Add ${unit}, months, or both.` : 'Add how many months.');
     run(
-      () => addScheduleItem({ vehicle: v.name, service: svc.trim(), miles: m, months: mo }),
+      () => addScheduleItem({ item: it.name, service: svc.trim(), every: e, months: mo }),
       () => {
         setSvc('');
-        setEveryMiles('');
+        setEvery('');
         setEveryMonths('');
         setShowAdd(false);
       },
@@ -71,8 +85,9 @@ export default function VehicleScreen() {
 
   return (
     <ScrollView contentContainerStyle={styles.wrap} refreshControl={<RefreshControl refreshing={loading} onRefresh={refresh} />} keyboardShouldPersistTaps="handled">
-      <Stack.Screen options={{ title: v.name }} />
-      <Text style={text.muted}>{vehicleTitle(v)}</Text>
+      <Stack.Screen options={{ title: it.name }} />
+      {title ? <Text style={text.muted}>{title}</Text> : null}
+      {it.notes ? <Text style={text.muted}>{it.notes}</Text> : null}
 
       {(msg || error) && (
         <Banner tone="warn">
@@ -80,44 +95,49 @@ export default function VehicleScreen() {
         </Banner>
       )}
 
-      <Card>
-        <Text style={text.section}>Odometer</Text>
-        <Text style={text.h2}>{v.miles === null ? 'Not set yet' : formatMiles(v.miles)}</Text>
-        {v.milesUpdated ? <Text style={text.muted}>Updated {formatDate(v.milesUpdated)}</Text> : null}
-        <Row style={{ marginTop: 6 }}>
-          <View style={{ flex: 1 }}>
-            <Field label="New reading" value={miles} onChangeText={setMiles} placeholder="e.g. 201500" keyboardType="number-pad" />
-          </View>
-          <Button label="Save" onPress={saveMiles} disabled={busy || !miles.trim()} style={{ marginTop: 26 }} />
-        </Row>
-      </Card>
+      {m ? (
+        <Card>
+          <Text style={text.section}>{meterLabel(m)}</Text>
+          <Text style={text.h2}>{it.reading === null ? 'Not set yet' : formatReading(it.reading, m)}</Text>
+          {it.readingUpdated ? <Text style={text.muted}>Updated {formatDate(it.readingUpdated)}</Text> : null}
+          <Row style={{ marginTop: 6 }}>
+            <View style={{ flex: 1 }}>
+              <Field label="New reading" value={reading} onChangeText={setReadingText} placeholder={m === 'hours' ? 'e.g. 250' : 'e.g. 201500'} keyboardType="number-pad" />
+            </View>
+            <Button label="Save" onPress={saveReading} disabled={busy || !reading.trim()} style={{ marginTop: 26 }} />
+          </Row>
+        </Card>
+      ) : null}
 
-      <Button label={`＋ Log service for ${v.name}`} onPress={() => router.push({ pathname: '/add', params: { vehicle: v.name } })} />
+      <Button label={`＋ Log service for ${it.name}`} onPress={() => router.push({ pathname: '/add', params: { item: it.name } })} />
 
       <Text style={text.section}>Schedule</Text>
+      {schedule.length === 0 && <Text style={text.muted}>No scheduled services yet.</Text>}
       {schedule.map((s) => (
         <Card key={s.service}>
           <Row style={{ justifyContent: 'space-between' }}>
             <Text style={[text.body, { fontWeight: '600', flex: 1 }]}>{s.service}</Text>
             <StatusPill status={s.status} />
           </Row>
-          <Text style={text.muted}>{interval(s)}</Text>
+          <Text style={text.muted}>{interval(s, m)}</Text>
           {s.lastDone ? (
             <Text style={text.muted}>
               Last done {formatDate(s.lastDone)}
-              {s.lastMiles ? ` at ${formatMiles(s.lastMiles)}` : ''}
+              {s.lastReading && m ? ` at ${formatReading(s.lastReading, m)}` : ''}
             </Text>
           ) : null}
-          {nextDue(s) ? <Text style={text.body}>Next: {nextDue(s)}</Text> : null}
+          {nextDue(s, m) ? <Text style={text.body}>Next: {nextDue(s, m)}</Text> : null}
         </Card>
       ))}
       {showAdd ? (
         <Card>
           <Field label="Service name" value={svc} onChangeText={setSvc} placeholder="e.g. Wiper blades" />
           <Row>
-            <View style={{ flex: 1 }}>
-              <Field label="Every (miles)" value={everyMiles} onChangeText={setEveryMiles} keyboardType="number-pad" />
-            </View>
+            {m ? (
+              <View style={{ flex: 1 }}>
+                <Field label={`Every (${unit})`} value={every} onChangeText={setEvery} keyboardType="number-pad" />
+              </View>
+            ) : null}
             <View style={{ flex: 1 }}>
               <Field label="Every (months)" value={everyMonths} onChangeText={setEveryMonths} keyboardType="number-pad" />
             </View>
@@ -139,7 +159,7 @@ export default function VehicleScreen() {
             <Text style={[text.body, { fontWeight: '600', flex: 1 }]}>{e.service}</Text>
             <Text style={text.muted}>{formatDate(e.date)}</Text>
           </Row>
-          <Text style={text.muted}>{[e.mileage !== null && formatMiles(e.mileage), formatCost(e.cost), e.shop].filter(Boolean).join(' · ')}</Text>
+          <Text style={text.muted}>{[e.reading !== null && m && formatReading(e.reading, m), formatCost(e.cost), e.shop].filter(Boolean).join(' · ')}</Text>
           {e.notes ? <Text style={text.body}>{e.notes}</Text> : null}
           {e.id ? (
             <Text

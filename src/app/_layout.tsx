@@ -14,8 +14,8 @@ export default function RootLayout() {
           contentStyle: { backgroundColor: colors.bg },
         }}
       >
-        <Stack.Screen name="index" options={{ title: 'Car Care', headerShown: false }} />
-        <Stack.Screen name="vehicle" options={{ title: 'Vehicle' }} />
+        <Stack.Screen name="index" options={{ title: 'Upkeep', headerShown: false }} />
+        <Stack.Screen name="item" options={{ title: 'Item' }} />
         <Stack.Screen name="add" options={{ title: 'Log service' }} />
         <Stack.Screen name="settings" options={{ title: 'Settings' }} />
       </Stack>

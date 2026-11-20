@@ -1,39 +1,43 @@
-# Car Care
+# Upkeep
 
-An Android app for the family's vehicle maintenance log. Everything is stored in a Google Sheet, so anyone you share the sheet with can look at it on any phone or computer without the app.
+An Android app for the family's maintenance log: vehicles and household equipment (like the water filter). Everything is stored in a Google Sheet, so anyone you share the sheet with can look at it on any phone or computer without the app.
 
 ## What it does
 
-- **Home:** what's overdue or due soon across all vehicles, and a card per vehicle with its mileage.
-- **Log service:** pick the vehicle and the service (oil change, tire rotation, …), the date, mileage, cost, shop, notes. It's added to the sheet, and the vehicle's mileage moves forward if the new reading is higher.
-- **Vehicle page:** update the odometer, see each scheduled item with last done / next due, add schedule items, and browse or delete past entries.
+- **Home:** what's overdue or due soon across everything, then a card for each vehicle and piece of equipment.
+- **Log service:** pick the item and the service (oil change, filter change, …), the date, the reading (miles or hours, if it has a meter), cost, shop, notes. It's added to the sheet, and the item's reading moves forward if the new one is higher.
+- **Item page:** update the odometer or hour meter, see each scheduled service with last done / next due, add schedule items, and browse or delete past entries.
 - **Updates:** when a new build is out, the home screen shows **Download & install** (same as RussianSpeak).
 
-## The Google Sheet ("Car Maintenance Log")
+## The Google Sheet ("Maintenance Log")
 
 | Tab | What's in it |
 |---|---|
-| Vehicles | One row per car. "Vehicle" is the short name used everywhere. |
+| Equipment | One row per vehicle or piece of equipment. **Type** is Vehicle or Equipment. **Meter** is miles, hours, or blank (no meter, like a water filter). |
 | Service Log | Every service. The app adds rows; you can type rows in too. |
 | Schedule | How often each service is due. Last done, next due and Status are formulas that read the Service Log. |
 
-Status is **Overdue**, **Due soon** (within 30 days or 500 miles), **OK**, or **No record**. A log entry counts toward a schedule item only when its Vehicle and Service match exactly. The starting intervals are general; adjust them from each owner's manual.
+Status is **Overdue**, **Due soon** (within about 10% of the interval, at most 30 days), **OK**, or **No record**. A log entry counts toward a schedule item only when its Item and Service match exactly. The starting intervals are general; adjust them from each owner's manual.
+
+To add something new (a mower, a generator, the HVAC filter), add a row on the Equipment tab, then add its services on the Schedule tab or from the app.
 
 ## Connect the app to the sheet (one time, easiest on a computer)
 
 1. Open the sheet → **Extensions → Apps Script**. Delete what's there, paste in [`apps-script/Code.gs`](apps-script/Code.gs), and save.
-2. In the function menu at the top, choose **makeKey** and press **Run**. Approve the permissions (Google warns because it's your own unverified script; choose Advanced → Go to project). Copy the key from the **Execution log**.
+2. In the function menu at the top, choose **setup** and press **Run**. Approve the permissions (Google warns because it's your own unverified script; choose Advanced → Go to project).
+   - While the Service Log is empty, setup lays out the tabs with all the items and starting schedules.
+   - It prints your key in the **Execution log**. Copy it.
 3. **Deploy → New deployment →** gear → **Web app**. Execute as **Me**, Who has access **Anyone**. Deploy and copy the **Web app URL** (ends in `/exec`).
 4. In the app: ⚙️ **Settings →** paste the URL and key → **Test & save**.
 
-"Anyone" means anyone with the URL can reach the script, but the script refuses every request without the key, and the key lives only on your phone. Don't post the URL or key anywhere.
+"Anyone" means anyone with the URL can reach the script, but the script refuses every request without the key, and the key lives only on your phone. Don't post the URL or key anywhere. Run **newKey** to replace the key if you ever need to.
 
 If you change `Code.gs` later: **Deploy → Manage deployments →** pencil → **Version: New version → Deploy**. The URL stays the same.
 
 ## Build and install from your phone
 
 1. Every merge to `main` runs **Actions → Build Android APK** (about 10–15 minutes). You can also run it by hand.
-2. Open **Releases**, download the newest `CarCare-N.apk`, and open it to install.
+2. Open **Releases**, download the newest `Upkeep-N.apk`, and open it to install.
 3. After that, new builds show up as an update on the app's home screen.
 
 The repo has to stay public for the update check to see new releases. No personal data is in the repo; it's all in your sheet.

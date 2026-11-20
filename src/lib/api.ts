@@ -3,9 +3,9 @@ import { useEffect, useState } from 'react';
 import { parseSheet, type SheetData } from './format';
 
 // The Apps Script web app URL and key live only on this phone.
-const SETTINGS_KEY = 'carcare:settings:v1';
+const SETTINGS_KEY = 'upkeep:settings:v1';
 // Last data we got, so the app opens instantly and works for viewing offline.
-const CACHE_KEY = 'carcare:cache:v1';
+const CACHE_KEY = 'upkeep:cache:v2';
 
 export type Settings = { url: string; key: string };
 
@@ -115,27 +115,27 @@ export async function testConnection(s: Settings): Promise<SheetData> {
 }
 
 export function addService(entry: {
-  vehicle: string;
+  item: string;
   date: string;
-  mileage: number | null;
+  reading: number | null;
   service: string;
   cost: number | null;
   shop: string;
   notes: string;
 }) {
-  return call('addService', { ...entry, mileage: entry.mileage ?? '', cost: entry.cost ?? '' });
+  return call('addService', { ...entry, reading: entry.reading ?? '', cost: entry.cost ?? '' });
 }
 
 export function deleteService(id: string) {
   return call('deleteService', { id });
 }
 
-export function setMileage(vehicle: string, mileage: number) {
-  return call('setMileage', { vehicle, mileage });
+export function setReading(item: string, reading: number) {
+  return call('setReading', { item, reading });
 }
 
-export function addScheduleItem(item: { vehicle: string; service: string; miles: number | null; months: number | null }) {
-  return call('addScheduleItem', { ...item, miles: item.miles ?? '', months: item.months ?? '' });
+export function addScheduleItem(s: { item: string; service: string; every: number | null; months: number | null }) {
+  return call('addScheduleItem', { ...s, every: s.every ?? '', months: s.months ?? '' });
 }
 
 export function markConfigured() {

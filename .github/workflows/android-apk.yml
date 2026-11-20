@@ -55,11 +55,11 @@ jobs:
       - name: Name the APK
         run: |
           mkdir -p out
-          cp android/app/build/outputs/apk/release/app-release.apk "out/CarCare-${{ github.run_number }}.apk"
+          cp android/app/build/outputs/apk/release/app-release.apk "out/Upkeep-${{ github.run_number }}.apk"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: CarCare-apk
+          name: Upkeep-apk
           path: out/*.apk
 
       - name: Publish release with the APK
@@ -67,7 +67,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: build-${{ github.run_number }}
-          name: CarCare build ${{ github.run_number }}
+          name: Upkeep build ${{ github.run_number }}
           body: Download the .apk below on your Android phone and open it to install.
           files: out/*.apk
           make_latest: true

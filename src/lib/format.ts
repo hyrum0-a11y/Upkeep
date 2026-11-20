@@ -1,23 +1,26 @@
 // Plain data helpers (no React Native imports, so they run in unit tests).
 
 export type Status = 'Overdue' | 'Due soon' | 'OK' | 'No record';
+/** What the item's reading counts: odometer miles, engine hours, or nothing (e.g. a water filter). */
+export type Meter = 'miles' | 'hours' | '';
 
-export type Vehicle = {
+export type Item = {
   name: string; // short name used everywhere, e.g. "Odyssey"
+  type: string; // "Vehicle" or "Equipment" (anything else is shown as equipment)
   year: string;
   make: string;
   model: string;
-  trim: string;
-  miles: number | null;
-  milesUpdated: string; // yyyy-MM-dd or ''
+  meter: Meter;
+  reading: number | null;
+  readingUpdated: string; // yyyy-MM-dd or ''
   notes: string;
 };
 
 export type ServiceEntry = {
   id: string;
   date: string; // yyyy-MM-dd
-  vehicle: string;
-  mileage: number | null;
+  item: string;
+  reading: number | null;
   service: string;
   cost: number | null;
   shop: string;
@@ -25,19 +28,19 @@ export type ServiceEntry = {
 };
 
 export type ScheduleItem = {
-  vehicle: string;
+  item: string;
   service: string;
-  everyMiles: number | null;
+  every: number | null; // miles or hours, matching the item's meter
   everyMonths: number | null;
   lastDone: string;
-  lastMiles: number | null;
+  lastReading: number | null;
   nextDate: string;
-  nextMiles: number | null;
+  nextReading: number | null;
   status: Status;
 };
 
 export type SheetData = {
-  vehicles: Vehicle[];
+  items: Item[];
   log: ServiceEntry[];
   schedule: ScheduleItem[];
   sheetUrl: string;
@@ -56,19 +59,26 @@ const status = (v: unknown): Status => {
   const s = str(v);
   return (STATUSES as string[]).includes(s) ? (s as Status) : 'No record';
 };
+const meter = (v: unknown): Meter => {
+  const s = str(v).toLowerCase();
+  if (s.startsWith('mi')) return 'miles';
+  if (s.startsWith('h')) return 'hours';
+  return '';
+};
 
 /** Turn the rows the Apps Script returns (keyed by column header) into typed data. */
-export function parseSheet(raw: { vehicles?: Row[]; log?: Row[]; schedule?: Row[]; sheetUrl?: string }): SheetData {
+export function parseSheet(raw: { items?: Row[]; log?: Row[]; schedule?: Row[]; sheetUrl?: string }): SheetData {
   return {
-    vehicles: (raw.vehicles ?? [])
+    items: (raw.items ?? [])
       .map((r) => ({
-        name: str(r['Vehicle']),
+        name: str(r['Item']),
+        type: str(r['Type']) || 'Equipment',
         year: str(r['Year']),
         make: str(r['Make']),
         model: str(r['Model']),
-        trim: str(r['Trim']),
-        miles: num(r['Current miles']),
-        milesUpdated: str(r['Miles updated']),
+        meter: meter(r['Meter']),
+        reading: num(r['Current reading']),
+        readingUpdated: str(r['Reading updated']),
         notes: str(r['Notes']),
       }))
       .filter((v) => v.name),
@@ -76,29 +86,36 @@ export function parseSheet(raw: { vehicles?: Row[]; log?: Row[]; schedule?: Row[
       .map((r) => ({
         id: str(r['ID']),
         date: str(r['Date']),
-        vehicle: str(r['Vehicle']),
-        mileage: num(r['Mileage']),
+        item: str(r['Item']),
+        reading: num(r['Reading']),
         service: str(r['Service']),
         cost: num(r['Cost']),
         shop: str(r['Shop / who']),
         notes: str(r['Notes']),
       }))
-      .filter((e) => e.vehicle && e.service),
+      .filter((e) => e.item && e.service),
     schedule: (raw.schedule ?? [])
       .map((r) => ({
-        vehicle: str(r['Vehicle']),
+        item: str(r['Item']),
         service: str(r['Service']),
-        everyMiles: num(r['Every (miles)']),
+        every: num(r['Every (mi/hr)']),
         everyMonths: num(r['Every (months)']),
         lastDone: str(r['Last done']),
-        lastMiles: num(r['Last miles']),
+        lastReading: num(r['Last reading']),
         nextDate: str(r['Next due date']),
-        nextMiles: num(r['Next due miles']),
+        nextReading: num(r['Next due reading']),
         status: status(r['Status']),
       }))
-      .filter((s) => s.vehicle && s.service),
+      .filter((s) => s.item && s.service),
     sheetUrl: str(raw.sheetUrl),
   };
+}
+
+export const isVehicle = (it: Item) => it.type.toLowerCase() === 'vehicle';
+
+/** "Odometer" / "Hour meter" for the reading's label. */
+export function meterLabel(m: Meter): string {
+  return m === 'hours' ? 'Hour meter' : 'Odometer';
 }
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -110,10 +127,11 @@ export function formatDate(iso: string): string {
   return `${MONTHS[Number(m[2]) - 1]} ${Number(m[3])}, ${m[1]}`;
 }
 
-/** 123456 → "123,456 mi". */
-export function formatMiles(n: number | null): string {
+/** 123456 → "123,456 mi"; 250 hours → "250 hr". */
+export function formatReading(n: number | null, m: Meter): string {
   if (n === null) return '—';
-  return `${Math.round(n).toLocaleString('en-US')} mi`;
+  const s = Math.round(n).toLocaleString('en-US');
+  return m === 'hours' ? `${s} hr` : m === 'miles' ? `${s} mi` : s;
 }
 
 export function formatCost(n: number | null): string {
@@ -143,18 +161,18 @@ export function parseNumber(s: string): number | null {
 }
 
 /** What's coming up next: "Mar 3, 2027 or 45,000 mi". */
-export function nextDue(item: ScheduleItem): string {
+export function nextDue(s: ScheduleItem, m: Meter): string {
   const parts: string[] = [];
-  if (item.nextDate) parts.push(formatDate(item.nextDate));
-  if (item.nextMiles !== null) parts.push(formatMiles(item.nextMiles));
+  if (s.nextDate) parts.push(formatDate(s.nextDate));
+  if (s.nextReading !== null && m) parts.push(formatReading(s.nextReading, m));
   return parts.join(' or ');
 }
 
 /** How often: "every 5,000 mi or 6 months". */
-export function interval(item: ScheduleItem): string {
+export function interval(s: ScheduleItem, m: Meter): string {
   const parts: string[] = [];
-  if (item.everyMiles) parts.push(formatMiles(item.everyMiles));
-  if (item.everyMonths) parts.push(`${item.everyMonths} month${item.everyMonths === 1 ? '' : 's'}`);
+  if (s.every && m) parts.push(formatReading(s.every, m));
+  if (s.everyMonths) parts.push(`${s.everyMonths} month${s.everyMonths === 1 ? '' : 's'}`);
   return parts.length ? `every ${parts.join(' or ')}` : '';
 }
 
@@ -168,11 +186,12 @@ export function byUrgency(items: ScheduleItem[]): ScheduleItem[] {
     .map((x) => x.it);
 }
 
-/** Newest first (by date, then by mileage). */
+/** Newest first (by date, then by reading). */
 export function newestFirst(log: ServiceEntry[]): ServiceEntry[] {
-  return [...log].sort((a, b) => b.date.localeCompare(a.date) || (b.mileage ?? 0) - (a.mileage ?? 0));
+  return [...log].sort((a, b) => b.date.localeCompare(a.date) || (b.reading ?? 0) - (a.reading ?? 0));
 }
 
-export function vehicleTitle(v: Vehicle): string {
-  return [v.year, v.make, v.model, v.trim].filter(Boolean).join(' ');
+/** "2003 Honda Odyssey EX". */
+export function itemTitle(it: Item): string {
+  return [it.year, it.make, it.model].filter(Boolean).join(' ');
 }

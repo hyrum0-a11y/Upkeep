@@ -42,7 +42,8 @@ Docs: https://docs.expo.dev/eas/index.md
 
 ## This project
 
-- Car Care: an Android app for the family's vehicle maintenance log. The data lives in a Google Sheet ("Car Maintenance Log"), reached through the Apps Script web app in `apps-script/Code.gs`.
+- Upkeep: an Android app for the family's maintenance log (vehicles and equipment like the water filter). The data lives in a Google Sheet ("Maintenance Log"), reached through the Apps Script web app in `apps-script/Code.gs`.
+- Items have a Meter (miles, hours, or blank). Blank-meter items are scheduled by months only.
 - The Sheet does the due-date math (Schedule tab formulas). The app only displays it, so the Sheet and the app always agree.
 - The web app URL and key are entered in the app's Settings and kept on the phone. Never commit them.
 - Updates: every merge to `main` builds an APK release; the app checks GitHub Releases (`src/lib/update.ts`) and offers Download & install. The repo must stay public for that check.

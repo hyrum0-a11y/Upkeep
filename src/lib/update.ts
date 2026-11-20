@@ -2,7 +2,7 @@ import { Linking, Platform } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
 import { startActivityAsync } from 'expo-intent-launcher';
 
-const REPO = 'hyrum0-a11y/CarCare';
+const REPO = 'hyrum0-a11y/Upkeep';
 
 /** Build number baked in by the GitHub Actions build (0 for local/dev builds). */
 export const BUILD_NUMBER = Number(process.env.EXPO_PUBLIC_BUILD_NUMBER ?? 0) || 0;
@@ -45,14 +45,14 @@ const FLAG_GRANT_READ_URI_PERMISSION = 1;
 /**
  * Download the APK inside the app (Chrome tends to stall on APKs at 100%),
  * then hand it to Android's installer. The first time, Android asks you to
- * allow Car Care to install apps. Falls back to the browser on failure.
+ * allow Upkeep to install apps. Falls back to the browser on failure.
  */
 export async function installUpdate(u: Update, onProgress?: (fraction: number) => void): Promise<void> {
   if (Platform.OS !== 'android' || !FileSystem.cacheDirectory) {
     await Linking.openURL(u.apkUrl);
     return;
   }
-  const dest = `${FileSystem.cacheDirectory}CarCare-${u.build}.apk`;
+  const dest = `${FileSystem.cacheDirectory}Upkeep-${u.build}.apk`;
   try {
     await FileSystem.deleteAsync(dest, { idempotent: true });
     const task = FileSystem.createDownloadResumable(u.apkUrl, dest, {}, (p) => {

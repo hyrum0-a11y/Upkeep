@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "Car Care",
-    "slug": "carcare",
+    "name": "Upkeep",
+    "slug": "upkeep",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -13,13 +13,13 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.hyrum.carcare",
+      "package": "com.hyrum.upkeep",
       "permissions": ["android.permission.REQUEST_INSTALL_PACKAGES"]
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
-    "scheme": "carcare",
+    "scheme": "upkeep",
     "plugins": ["expo-router"]
   }
 }

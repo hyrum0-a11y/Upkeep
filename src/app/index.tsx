@@ -4,7 +4,7 @@ import { Linking, Pressable, RefreshControl, ScrollView, StyleSheet, Text } from
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Banner, Button, Card, Row, StatusPill, colors, text } from '../components/ui';
 import { refresh, useSheet } from '../lib/api';
-import { byUrgency, formatDate, formatMiles, nextDue, vehicleTitle } from '../lib/format';
+import { byUrgency, formatDate, formatReading, isVehicle, itemTitle, nextDue, type Item, type SheetData } from '../lib/format';
 import { checkForUpdate, installUpdate, type Update } from '../lib/update';
 
 export default function Home() {
@@ -17,7 +17,11 @@ export default function Home() {
     checkForUpdate().then(setUpdate);
   }, []);
 
+  const meterOf = (name: string) => data?.items.find((i) => i.name === name)?.meter ?? '';
   const attention = data ? byUrgency(data.schedule).filter((s) => s.status === 'Overdue' || s.status === 'Due soon') : [];
+  const vehicles = data ? data.items.filter(isVehicle) : [];
+  const equipment = data ? data.items.filter((i) => !isVehicle(i)) : [];
+  const open = (name: string) => router.push({ pathname: '/item', params: { name } });
 
   return (
     <ScrollView
@@ -25,7 +29,7 @@ export default function Home() {
       refreshControl={<RefreshControl refreshing={loading} onRefresh={refresh} />}
     >
       <Row style={{ justifyContent: 'space-between' }}>
-        <Text style={text.h1}>Car Care</Text>
+        <Text style={text.h1}>Upkeep</Text>
         <Pressable onPress={() => router.push('/settings')} hitSlop={12} accessibilityRole="button" accessibilityLabel="Settings">
           <Text style={{ fontSize: 24 }}>⚙️</Text>
         </Pressable>
@@ -34,7 +38,7 @@ export default function Home() {
       {update && (
         <Banner tone="good">
           <Text style={text.h2}>Update available · build {update.build}</Text>
-          <Text style={text.muted}>Downloads inside the app, then Android asks to install. The first time, allow Car Care to install apps.</Text>
+          <Text style={text.muted}>Downloads inside the app, then Android asks to install. The first time, allow Upkeep to install apps.</Text>
           <Button
             label={progress === null ? '⬇ Download & install' : `Downloading… ${Math.round(progress * 100)}%`}
             color={colors.good}
@@ -72,41 +76,27 @@ export default function Home() {
             <Text style={text.muted}>Nothing overdue or due soon. 👍</Text>
           ) : (
             attention.map((s) => (
-              <Card key={`${s.vehicle}|${s.service}`} onPress={() => router.push({ pathname: '/vehicle', params: { name: s.vehicle } })}>
+              <Card key={`${s.item}|${s.service}`} onPress={() => open(s.item)}>
                 <Row style={{ justifyContent: 'space-between' }}>
                   <Text style={[text.body, { fontWeight: '600', flex: 1 }]}>
-                    {s.vehicle} · {s.service}
+                    {s.item} · {s.service}
                   </Text>
                   <StatusPill status={s.status} />
                 </Row>
-                <Text style={text.muted}>Due {nextDue(s)}</Text>
+                <Text style={text.muted}>Due {nextDue(s, meterOf(s.item))}</Text>
               </Card>
             ))
           )}
 
-          <Text style={text.section}>Vehicles</Text>
-          {data.vehicles.map((v) => {
-            const items = data.schedule.filter((s) => s.vehicle === v.name);
-            const overdue = items.filter((s) => s.status === 'Overdue').length;
-            const soon = items.filter((s) => s.status === 'Due soon').length;
-            const last = data.log.filter((e) => e.vehicle === v.name).sort((a, b) => b.date.localeCompare(a.date))[0];
-            return (
-              <Card key={v.name} onPress={() => router.push({ pathname: '/vehicle', params: { name: v.name } })}>
-                <Text style={text.h2}>{v.name}</Text>
-                <Text style={text.muted}>{vehicleTitle(v)}</Text>
-                <Text style={text.body}>
-                  {v.miles === null ? 'Mileage not set yet' : formatMiles(v.miles)}
-                  {v.milesUpdated ? <Text style={text.muted}>  (as of {formatDate(v.milesUpdated)})</Text> : null}
-                </Text>
-                {(overdue > 0 || soon > 0) && (
-                  <Text style={[text.body, { color: overdue ? colors.danger : colors.warn, fontWeight: '600' }]}>
-                    {[overdue && `${overdue} overdue`, soon && `${soon} due soon`].filter(Boolean).join(' · ')}
-                  </Text>
-                )}
-                {last && <Text style={text.muted}>Last: {last.service}, {formatDate(last.date)}</Text>}
-              </Card>
-            );
-          })}
+          {vehicles.length > 0 && <Text style={text.section}>Vehicles</Text>}
+          {vehicles.map((it) => (
+            <ItemCard key={it.name} it={it} data={data} onPress={() => open(it.name)} />
+          ))}
+
+          {equipment.length > 0 && <Text style={text.section}>Equipment</Text>}
+          {equipment.map((it) => (
+            <ItemCard key={it.name} it={it} data={data} onPress={() => open(it.name)} />
+          ))}
 
           {data.sheetUrl ? (
             <Pressable onPress={() => Linking.openURL(data.sheetUrl)} style={{ paddingVertical: 8 }}>
@@ -118,6 +108,36 @@ export default function Home() {
 
       {!data && configured && loading && <Text style={text.muted}>Loading…</Text>}
     </ScrollView>
+  );
+}
+
+function ItemCard({ it, data, onPress }: { it: Item; data: SheetData; onPress: () => void }) {
+  const items = data.schedule.filter((s) => s.item === it.name);
+  const overdue = items.filter((s) => s.status === 'Overdue').length;
+  const soon = items.filter((s) => s.status === 'Due soon').length;
+  const last = data.log.filter((e) => e.item === it.name).sort((a, b) => b.date.localeCompare(a.date))[0];
+  const title = itemTitle(it);
+  return (
+    <Card onPress={onPress}>
+      <Text style={text.h2}>{it.name}</Text>
+      {title ? <Text style={text.muted}>{title}</Text> : null}
+      {it.meter ? (
+        <Text style={text.body}>
+          {it.reading === null ? `${it.meter === 'hours' ? 'Hours' : 'Mileage'} not set yet` : formatReading(it.reading, it.meter)}
+          {it.readingUpdated ? <Text style={text.muted}>  (as of {formatDate(it.readingUpdated)})</Text> : null}
+        </Text>
+      ) : null}
+      {(overdue > 0 || soon > 0) && (
+        <Text style={[text.body, { color: overdue ? colors.danger : colors.warn, fontWeight: '600' }]}>
+          {[overdue && `${overdue} overdue`, soon && `${soon} due soon`].filter(Boolean).join(' · ')}
+        </Text>
+      )}
+      {last && (
+        <Text style={text.muted}>
+          Last: {last.service}, {formatDate(last.date)}
+        </Text>
+      )}
+    </Card>
   );
 }
 
