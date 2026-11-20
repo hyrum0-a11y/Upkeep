@@ -1,0 +1,25 @@
+{
+  "expo": {
+    "name": "Car Care",
+    "slug": "carcare",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#1F4E8C",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "package": "com.hyrum.carcare",
+      "permissions": ["android.permission.REQUEST_INSTALL_PACKAGES"]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "scheme": "carcare",
+    "plugins": ["expo-router"]
+  }
+}
