@@ -126,6 +126,15 @@ export function addService(entry: {
   return call('addService', { ...entry, reading: entry.reading ?? '', cost: entry.cost ?? '' });
 }
 
+type NewEntry = Parameters<typeof addService>[0];
+
+/** Several entries in one trip, e.g. starting points for a vehicle. */
+export function addServices(entries: NewEntry[]) {
+  return call('addServices', {
+    entries: entries.map((e) => ({ ...e, reading: e.reading ?? '', cost: e.cost ?? '' })),
+  });
+}
+
 export function deleteService(id: string) {
   return call('deleteService', { id });
 }

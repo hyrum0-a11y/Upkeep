@@ -37,6 +37,7 @@ export type ScheduleItem = {
   nextDate: string;
   nextReading: number | null;
   status: Status;
+  part: string; // what to buy: oil type, filter part number…
 };
 
 export type SheetData = {
@@ -105,6 +106,7 @@ export function parseSheet(raw: { items?: Row[]; log?: Row[]; schedule?: Row[]; 
         nextDate: str(r['Next due date']),
         nextReading: num(r['Next due reading']),
         status: status(r['Status']),
+        part: str(r['Part / spec']),
       }))
       .filter((s) => s.item && s.service),
     sheetUrl: str(raw.sheetUrl),

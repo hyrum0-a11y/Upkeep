@@ -27,7 +27,7 @@ const raw = {
   ],
   schedule: [
     { Item: 'Odyssey', Service: 'Coolant', 'Every (mi/hr)': 60000, 'Every (months)': 60, Status: 'No record' },
-    { Item: 'Odyssey', Service: 'Oil & filter', 'Every (mi/hr)': 5000, 'Every (months)': 6, 'Last done': '2026-05-01', 'Last reading': 196000, 'Next due date': '2026-11-01', 'Next due reading': 201000, Status: 'Overdue' },
+    { Item: 'Odyssey', Service: 'Oil & filter', 'Every (mi/hr)': 5000, 'Every (months)': 6, 'Last done': '2026-05-01', 'Last reading': 196000, 'Next due date': '2026-11-01', 'Next due reading': 201000, Status: 'Overdue', 'Part / spec': '5W-20' },
     { Item: 'Water filter', Service: 'Filter change', 'Every (mi/hr)': '', 'Every (months)': 6, 'Last done': '2026-11-01', 'Next due date': '2027-05-01', 'Next due reading': '', Status: 'OK' },
   ],
   sheetUrl: 'https://example.com',
@@ -47,6 +47,8 @@ test('parseSheet reads rows by header and skips blanks', () => {
   assert.equal(d.log[0].cost, 45.5);
   assert.equal(d.schedule[1].nextReading, 201000);
   assert.equal(d.schedule[0].status, 'No record');
+  assert.equal(d.schedule[1].part, '5W-20');
+  assert.equal(d.schedule[0].part, '');
 });
 
 test('unknown status falls back to No record', () => {

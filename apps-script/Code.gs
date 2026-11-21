@@ -6,24 +6,27 @@
  *  1. In the sheet: Extensions → Apps Script. Replace everything with this file and Save.
  *  2. Pick "setup" in the function menu at the top and press Run. Allow access when asked
  *     (Advanced → Go to project, since it's your own script).
- *     It lays out the tabs (only while the Service Log is still empty) and prints your key
+ *     It lays out the tabs (only if there's no Equipment tab yet) and prints your key
  *     in the Execution log. Copy the key; you'll paste it into the app.
  *  3. Deploy → New deployment → gear icon → Web app.
  *     Execute as: Me.  Who has access: Anyone.  Deploy, then copy the Web app URL.
  *  4. In the app: Settings → paste the URL and the key → Test & save.
  *
- * After editing this script later: Deploy → Manage deployments → pencil → Version: New version → Deploy.
+ * After pasting a newer version of this file: pick "upgrade" and Run (it only adds things, never deletes),
+ * then Deploy → Manage deployments → pencil → Version: New version → Deploy.
  * (The URL stays the same.) Run "newKey" if you ever want to replace the key.
  *
  * Columns are found by their header names, so you can reorder them or add your own.
  */
 
-var SHEETS = { items: 'Equipment', log: 'Service Log', schedule: 'Schedule', readme: 'Read me' };
+var SHEETS = { due: 'Due', items: 'Equipment', log: 'Service Log', schedule: 'Schedule', readme: 'Read me' };
 
 var ITEM_HEADERS = ['Item', 'Type', 'Year', 'Make', 'Model', 'Meter', 'Current reading', 'Reading updated', 'Notes'];
 var LOG_HEADERS = ['ID', 'Date', 'Item', 'Reading', 'Service', 'Cost', 'Shop / who', 'Notes', 'Entered'];
+// Formulas fill columns E–J, so new columns go after Status.
 var SCHEDULE_HEADERS = ['Item', 'Service', 'Every (mi/hr)', 'Every (months)', 'Last done', 'Last reading',
-  'Current reading', 'Next due date', 'Next due reading', 'Status'];
+  'Current reading', 'Next due date', 'Next due reading', 'Status', 'Part / spec'];
+var DUE_HEADERS = ['Status', 'Item', 'Service', 'Next due date', 'Next due reading', 'Current reading', 'Part / spec'];
 
 // Meter: "miles", "hours", or blank for things without one (like a water filter).
 var START_ITEMS = [
@@ -34,65 +37,94 @@ var START_ITEMS = [
   ['Water filter', 'Equipment', '', '', '', '', '', '', 'Add the filter type or part number'],
 ];
 
-// Starting-point intervals [item, service, every miles/hours, every months]. Check each owner's manual.
+// Recommended schedule [item, service, every miles/hours, every months, part / spec].
+// From the owner's manuals where available; "(check manual)" marks numbers not confirmed from one.
+// Shorter intervals than "normal" on purpose for the high-mileage vehicles.
+var COMMON = function (item, brakeFluid) {
+  return [
+    [item, 'Fuel injector cleaner', 3000, 4, 'One bottle in a full tank'],
+    [item, 'Brake fluid', brakeFluid[0], brakeFluid[1], 'DOT 3'],
+    [item, 'Battery', '', 60, 'Test yearly; replace about every 5 years'],
+    [item, 'Wiper blades', '', 12, ''],
+    [item, 'Tires (replace by age)', '', 72, 'Replace at 6 years or 2/32" tread'],
+  ];
+};
 var START_SCHEDULE = [
-  ['Odyssey', 'Oil & filter', 5000, 6],
-  ['Odyssey', 'Tire rotation', 7500, 6],
-  ['Odyssey', 'Engine air filter', 15000, 12],
-  ['Odyssey', 'Cabin air filter', 15000, 12],
-  ['Odyssey', 'Brake inspection', 15000, 12],
-  ['Odyssey', 'Transmission fluid', 30000, 24],
-  ['Odyssey', 'Coolant', 60000, 60],
-  ['Odyssey', 'Spark plugs', 105000, 84],
-  ['Odyssey', 'Timing belt & water pump', 105000, 84],
-  ['Sentra', 'Oil & filter', 5000, 6],
-  ['Sentra', 'Tire rotation', 7500, 6],
-  ['Sentra', 'Engine air filter', 15000, 12],
-  ['Sentra', 'Cabin air filter', 15000, 12],
-  ['Sentra', 'Brake inspection', 15000, 12],
-  ['Sentra', 'CVT fluid', 60000, 48],
-  ['Sentra', 'Coolant', 60000, 60],
-  ['Sentra', 'Spark plugs', 105000, 84],
-  ['Silverado', 'Oil & filter', 5000, 6],
-  ['Silverado', 'Tire rotation', 7500, 6],
-  ['Silverado', 'Engine air filter', 15000, 12],
-  ['Silverado', 'Brake inspection', 15000, 12],
-  ['Silverado', 'Transmission fluid', 50000, 48],
-  ['Silverado', 'Coolant', 100000, 60],
-  ['Silverado', 'Spark plugs', 100000, 84],
-  ["Claire's Hyundai", 'Oil & filter', 5000, 6],
-  ["Claire's Hyundai", 'Tire rotation', 7500, 6],
-  ["Claire's Hyundai", 'Engine air filter', 15000, 12],
-  ["Claire's Hyundai", 'Cabin air filter', 15000, 12],
-  ["Claire's Hyundai", 'Brake inspection', 15000, 12],
-  ["Claire's Hyundai", 'Coolant', 60000, 60],
-  ["Claire's Hyundai", 'Spark plugs', 100000, 84],
-  ['Water filter', 'Filter change', '', 6],
-];
+  ['Odyssey', 'Oil & filter', 5000, 6, '5W-20'],
+  ['Odyssey', 'Tire rotation', 7500, 6, ''],
+  ['Odyssey', 'Engine air filter', 15000, 12, ''],
+  ['Odyssey', 'Cabin air filter', 15000, 12, ''],
+  ['Odyssey', 'Brake inspection', 15000, 12, ''],
+  ['Odyssey', 'Transmission fluid', 30000, 24, 'Honda ATF DW-1, drain & fill. This transmission is fragile; keep it fresh'],
+  ['Odyssey', 'Coolant', 60000, 60, 'Honda Type 2 (blue)'],
+  ['Odyssey', 'Spark plugs', 105000, 84, ''],
+  ['Odyssey', 'Timing belt & water pump', 105000, 84, 'Next around 210,000 mi if it was done near 105,000'],
+].concat(COMMON('Odyssey', ['', 36]), [
+  ['Sentra', 'Oil & filter', 5000, 6, '0W-20 synthetic'],
+  ['Sentra', 'Tire rotation', 5000, 6, ''],
+  ['Sentra', 'Engine air filter', 30000, 36, ''],
+  ['Sentra', 'Cabin air filter', 15000, 18, ''],
+  ['Sentra', 'Brake inspection', 15000, 12, ''],
+  ['Sentra', 'CVT fluid', 60000, 72, 'Nissan NS-3 CVT fluid'],
+  ['Sentra', 'Coolant', 105000, 84, 'Nissan Long Life (blue). After the first change: every 75,000 mi / 60 months'],
+  ['Sentra', 'Spark plugs', 105000, 126, ''],
+], COMMON('Sentra', [20000, 24]), [
+  ['Silverado', 'Oil & filter', 5000, 6, '5W-30'],
+  ['Silverado', 'Tire rotation', 6000, 6, ''],
+  ['Silverado', 'Engine air filter', 15000, 12, ''],
+  ['Silverado', 'Brake inspection', 15000, 12, ''],
+  ['Silverado', 'Transmission fluid', 30000, 30, 'Fluid & filter, DEXRON-VI'],
+  ['Silverado', 'Fuel filter', 30000, 30, ''],
+  ['Silverado', 'Coolant', 100000, 60, 'DEX-COOL (orange)'],
+  ['Silverado', 'Spark plugs', 100000, 60, ''],
+], COMMON('Silverado', [30000, 30]), [
+  ["Claire's Hyundai", 'Oil & filter', 5000, 6, ''],
+  ["Claire's Hyundai", 'Tire rotation', 7500, 6, ''],
+  ["Claire's Hyundai", 'Engine air filter', 15000, 12, ''],
+  ["Claire's Hyundai", 'Cabin air filter', 15000, 12, ''],
+  ["Claire's Hyundai", 'Brake inspection', 15000, 12, ''],
+  ["Claire's Hyundai", 'Timing belt', 60000, 60, 'Important on the 1.6 engine. Ask when it was last done (check manual)'],
+  ["Claire's Hyundai", 'Coolant', 60000, 60, ''],
+  ["Claire's Hyundai", 'Spark plugs', 30000, 36, '(check manual)'],
+], COMMON("Claire's Hyundai", ['', 36]), [
+  ['Water filter', 'Filter change', '', 6, 'Add the part number'],
+]);
+
+// The intervals the first version started with. upgrade() only replaces an interval that still has
+// this exact value, so anything you changed by hand is kept.
+var OLD_DEFAULTS = {
+  'Sentra|Tire rotation': [7500, 6], 'Sentra|Engine air filter': [15000, 12], 'Sentra|Cabin air filter': [15000, 12],
+  'Sentra|CVT fluid': [60000, 48], 'Sentra|Coolant': [60000, 60], 'Sentra|Spark plugs': [105000, 84],
+  'Silverado|Tire rotation': [7500, 6], 'Silverado|Transmission fluid': [50000, 48], 'Silverado|Spark plugs': [100000, 84],
+  "Claire's Hyundai|Spark plugs": [100000, 84],
+};
 
 var README = [
   'Maintenance Log',
   '',
+  'Due: everything that is Overdue or Due soon, most urgent first. Start here.',
   'Equipment: one row per vehicle or piece of equipment. "Item" is the short name used everywhere else.',
   '  Type: Vehicle or Equipment.  Meter: miles, hours, or blank if it has no meter (like a water filter).',
   'Service Log: every oil change, filter change, repair, or check. The app adds rows; you can type them in too.',
   'Schedule: how often each service is due. Last done, next due and Status fill in by themselves from the Service Log.',
   '  Status: OK, Due soon (within about 10% of the interval, at most 30 days), Overdue, or No record yet.',
   '  A log entry counts only when its Item and Service match the Schedule exactly.',
-  'The starting intervals are general guesses. Check each owner\'s manual and adjust "Every (mi/hr)" and "Every (months)".',
+  '  Part / spec: what to buy (oil type, filter part number). Fill it in as you learn it.',
+  '  No record means nothing is logged yet. In the app, use "Set starting points" to enter roughly when each was last done.',
+  'Intervals come from the owner\'s manuals where we could find them; "(check manual)" means not confirmed. Adjust freely.',
+  'Equipment like the fridge filter, furnace filter or water heater: add a row on Equipment (Meter blank), then its services on Schedule.',
 ];
 
 // ---------- setup ----------
 
-/** Run once from the editor: lays out the tabs (if no service is logged yet) and prints the key. */
+/** Run once from the editor: lays out the tabs (only if there is no Equipment tab yet) and prints the key. */
 function setup() {
   var ss = SpreadsheetApp.getActive();
-  var log = ss.getSheetByName(SHEETS.log);
-  if (log && log.getLastRow() > 1) {
-    Logger.log('The Service Log already has entries, so the tabs were left as they are.');
+  if (ss.getSheetByName(SHEETS.items)) {
+    Logger.log('The tabs already exist, so they were left as they are. Run "upgrade" to add new features.');
   } else {
     buildSheet_(ss);
-    Logger.log('Tabs are set up: Read me, Equipment, Service Log, Schedule.');
+    Logger.log('Tabs are set up: Due, Read me, Equipment, Service Log, Schedule.');
   }
   var props = PropertiesService.getScriptProperties();
   var key = props.getProperty('API_KEY');
@@ -139,8 +171,9 @@ function buildSheet_(ss) {
   log.getRange('C2:C').setDataValidation(itemList);
 
   var sch = ss.insertSheet(SHEETS.schedule, 3);
-  header_(sch, SCHEDULE_HEADERS, [140, 190, 100, 105, 100, 100, 115, 110, 125, 90]);
-  sch.getRange(2, 1, START_SCHEDULE.length, 4).setValues(START_SCHEDULE);
+  header_(sch, SCHEDULE_HEADERS, [140, 190, 100, 105, 100, 100, 115, 110, 125, 90, 320]);
+  sch.getRange(2, 1, START_SCHEDULE.length, 4).setValues(START_SCHEDULE.map(function (r) { return r.slice(0, 4); }));
+  sch.getRange(2, 11, START_SCHEDULE.length, 1).setValues(START_SCHEDULE.map(function (r) { return [r[4]]; }));
   for (var r = 2; r < START_SCHEDULE.length + 2; r++) setScheduleFormulas_(sch, r);
   sch.getRange('C2:C').setNumberFormat('#,##0');
   sch.getRange('F2:G').setNumberFormat('#,##0');
@@ -148,9 +181,149 @@ function buildSheet_(ss) {
   sch.getRange('E2:E').setNumberFormat('mmm d, yyyy');
   sch.getRange('H2:H').setNumberFormat('mmm d, yyyy');
   sch.getRange('A2:A').setDataValidation(itemList);
+  statusColors_(sch, 'J2:J');
 
+  buildDue_(ss);
   old.forEach(function (sh) { ss.deleteSheet(sh); });
-  ss.setActiveSheet(items);
+  ss.setActiveSheet(ss.getSheetByName(SHEETS.due));
+}
+
+// ---------- upgrade (safe to run any time) ----------
+
+/**
+ * Run from the editor after pasting a new version of this file. Only adds things:
+ * the Due tab, the Part / spec column, recommended Schedule rows that are missing, and status colors.
+ * Intervals are updated only where they still have the old starting value. Nothing is deleted.
+ */
+function upgrade() {
+  var ss = SpreadsheetApp.getActive();
+  var sch = sheet_(SHEETS.schedule);
+  var notes = [];
+
+  // Part / spec column after the last header.
+  var headers = sch.getRange(1, 1, 1, sch.getLastColumn()).getValues()[0].map(String);
+  if (headers.indexOf('Part / spec') < 0) {
+    var c = headers.length + 1;
+    sch.getRange(1, c).setValue('Part / spec').setFontWeight('bold').setFontColor('#FFFFFF').setBackground('#1F4E8C').setWrap(true);
+    sch.setColumnWidth(c, 320);
+    notes.push('Added the Part / spec column.');
+  }
+  var col = { item: colOf_(sch, 'Item'), service: colOf_(sch, 'Service'), every: colOf_(sch, 'Every (mi/hr)'),
+    months: colOf_(sch, 'Every (months)'), part: colOf_(sch, 'Part / spec') };
+
+  var items = {};
+  table_(SHEETS.items).forEach(function (r) { items[String(r['Item'])] = r; });
+
+  // Existing rows: fill blank Part / spec, update untouched intervals.
+  var rows = sch.getLastRow() > 1 ? sch.getRange(2, 1, sch.getLastRow() - 1, sch.getLastColumn()).getValues() : [];
+  var have = {};
+  var rec = {};
+  START_SCHEDULE.forEach(function (r) { rec[r[0] + '|' + r[1]] = r; });
+  var changed = 0;
+  rows.forEach(function (row, i) {
+    var k = String(row[col.item - 1]) + '|' + String(row[col.service - 1]);
+    have[k] = true;
+    var r = rec[k];
+    if (!r) return;
+    var line = i + 2;
+    if (r[4] && row[col.part - 1] === '') sch.getRange(line, col.part).setValue(r[4]);
+    var old = OLD_DEFAULTS[k];
+    if (old && row[col.every - 1] === old[0] && row[col.months - 1] === old[1]) {
+      sch.getRange(line, col.every).setValue(r[2]);
+      sch.getRange(line, col.months).setValue(r[3]);
+      changed++;
+    }
+  });
+  if (changed) notes.push('Updated ' + changed + ' intervals from the owner\'s manuals.');
+
+  // Missing recommended rows, for items that are on the Equipment tab.
+  var added = 0;
+  START_SCHEDULE.forEach(function (r) {
+    var k = r[0] + '|' + r[1];
+    if (have[k] || !items[r[0]]) return;
+    append_(SHEETS.schedule, { 'Item': r[0], 'Service': r[1], 'Every (mi/hr)': r[2], 'Every (months)': r[3], 'Part / spec': r[4] });
+    setScheduleFormulas_(sch, sch.getLastRow());
+    added++;
+  });
+  if (added) notes.push('Added ' + added + ' schedule rows (fuel injector cleaner, brake fluid, battery, wipers, tires, and more).');
+
+  // Keep rows grouped by item, in Equipment order, so the tab stays easy to read.
+  if (added) sortSchedule_(sch, Object.keys(items));
+  sch.getRange('C2:D').setNumberFormat('#,##0');
+  statusColors_(sch, 'J2:J');
+
+  // The water filter has no meter.
+  var wf = items['Water filter'];
+  if (wf && String(wf['Meter']).toLowerCase() === 'hours' && (wf['Current reading'] === '' || wf['Current reading'] == null)) {
+    var eq = sheet_(SHEETS.items);
+    var names = eq.getRange(2, colOf_(eq, 'Item'), eq.getLastRow() - 1, 1).getValues();
+    for (var i = 0; i < names.length; i++) {
+      if (names[i][0] === 'Water filter') eq.getRange(i + 2, colOf_(eq, 'Meter')).setValue('');
+    }
+    notes.push('Cleared the water filter\'s Meter (it has no hour meter).');
+  }
+
+  if (!ss.getSheetByName(SHEETS.due)) {
+    buildDue_(ss);
+    notes.push('Added the Due tab.');
+  }
+
+  var readme = sheet_(SHEETS.readme);
+  readme.getRange('A:A').clearContent();
+  readme.getRange(1, 1, README.length, 1).setValues(README.map(function (l) { return [l]; }));
+  readme.getRange('A1').setFontSize(14).setFontWeight('bold');
+
+  SpreadsheetApp.flush();
+  Logger.log(notes.length ? notes.join('\n') : 'Already up to date.');
+}
+
+/** Sort Schedule rows by item (Equipment order), keeping the service order within each item. */
+function sortSchedule_(sch, order) {
+  var n = sch.getLastRow() - 1;
+  if (n < 2) return;
+  var w = 4; // only the typed columns; formulas in E–J are re-made below
+  var partCol = colOf_(sch, 'Part / spec');
+  var typed = sch.getRange(2, 1, n, w).getValues();
+  var parts = sch.getRange(2, partCol, n, 1).getValues();
+  var rows = typed.map(function (r, i) { return { r: r, p: parts[i][0], i: i }; });
+  var rank = function (name) { var k = order.indexOf(String(name)); return k < 0 ? order.length : k; };
+  rows.sort(function (a, b) { return rank(a.r[0]) - rank(b.r[0]) || a.i - b.i; });
+  sch.getRange(2, 1, n, w).setValues(rows.map(function (x) { return x.r; }));
+  sch.getRange(2, partCol, n, 1).setValues(rows.map(function (x) { return [x.p]; }));
+  for (var r = 2; r < n + 2; r++) setScheduleFormulas_(sch, r);
+}
+
+/** The Due tab: one formula that lists Overdue and Due soon rows from the Schedule, most urgent first. */
+function buildDue_(ss) {
+  var due = ss.insertSheet(SHEETS.due, 0);
+  header_(due, DUE_HEADERS, [90, 140, 190, 110, 125, 115, 320]);
+  var S = 'Schedule!';
+  var sch = sheet_(SHEETS.schedule);
+  var part = colLetter_(colOf_(sch, 'Part / spec'));
+  due.getRange('A2').setFormula(
+    '=IFERROR(SORT(FILTER({' + S + 'J2:J,' + S + 'A2:B,' + S + 'H2:I,' + S + 'G2:G,' + S + part + '2:' + part + '},' +
+    '(' + S + 'J2:J="Overdue")+(' + S + 'J2:J="Due soon")),1,FALSE,4,TRUE),"Nothing is due. Rows with no record yet are not listed.")');
+  due.getRange('D2:D').setNumberFormat('mmm d, yyyy');
+  due.getRange('E2:F').setNumberFormat('#,##0');
+  statusColors_(due, 'A2:A');
+}
+
+/** Red for Overdue, amber for Due soon, green for OK, gray for No record. */
+function statusColors_(sh, a1) {
+  var range = sh.getRange(a1);
+  var keep = sh.getConditionalFormatRules().filter(function (rule) {
+    return !rule.getRanges().some(function (r) { return r.getA1Notation() === range.getA1Notation(); });
+  });
+  var rule = function (text, bg, fg) {
+    return SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo(text).setBackground(bg).setFontColor(fg)
+      .setRanges([range]).build();
+  };
+  sh.setConditionalFormatRules(keep.concat([
+    rule('Overdue', '#F8D7DA', '#842029'),
+    rule('Due soon', '#FFF3CD', '#664D03'),
+    rule('OK', '#D1E7DD', '#0F5132'),
+    rule('No record', '#EEEEEE', '#666666'),
+  ]));
 }
 
 function header_(sh, headers, widths) {
@@ -205,6 +378,9 @@ function doPost(e) {
         return json_({ ok: true, data: all_() });
       case 'addService':
         addService_(req);
+        break;
+      case 'addServices': // several at once, e.g. starting points
+        (req.entries || []).forEach(addService_);
         break;
       case 'deleteService':
         deleteService_(req.id);
@@ -322,6 +498,7 @@ function addScheduleItem_(req) {
     'Service': String(req.service || ''),
     'Every (mi/hr)': req.every ? Number(req.every) : '',
     'Every (months)': req.months ? Number(req.months) : '',
+    'Part / spec': String(req.part || ''),
   });
   var sh = sheet_(SHEETS.schedule);
   setScheduleFormulas_(sh, sh.getLastRow());
@@ -356,6 +533,13 @@ function parseDate_(s) {
     return new Date(d.getFullYear(), d.getMonth(), d.getDate());
   }
   return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+}
+
+/** 11 → "K". */
+function colLetter_(n) {
+  var s = '';
+  for (; n > 0; n = Math.floor((n - 1) / 26)) s = String.fromCharCode(65 + ((n - 1) % 26)) + s;
+  return s;
 }
 
 function json_(obj) {

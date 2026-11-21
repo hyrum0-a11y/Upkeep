@@ -38,6 +38,7 @@ export default function ItemScreen() {
   const m = it.meter;
   const unit = m === 'hours' ? 'hours' : 'miles';
   const schedule = byUrgency(data.schedule.filter((s) => s.item === it.name));
+  const noRecord = schedule.filter((s) => s.status === 'No record').length;
   const history = newestFirst(data.log.filter((e) => e.item === it.name));
   const title = itemTitle(it);
 
@@ -113,6 +114,19 @@ export default function ItemScreen() {
 
       <Text style={text.section}>Schedule</Text>
       {schedule.length === 0 && <Text style={text.muted}>No scheduled services yet.</Text>}
+      {noRecord > 0 && (
+        <Banner tone="info">
+          <Text style={text.body}>
+            {noRecord} {noRecord === 1 ? 'service has' : 'services have'} no record yet, so {noRecord === 1 ? 'it' : 'they'} can't come due.
+          </Text>
+          <Button
+            label="Set starting points"
+            variant="outline"
+            onPress={() => router.push({ pathname: '/starting', params: { item: it.name } })}
+            style={{ marginTop: 6 }}
+          />
+        </Banner>
+      )}
       {schedule.map((s) => (
         <Card key={s.service}>
           <Row style={{ justifyContent: 'space-between' }}>
@@ -127,6 +141,7 @@ export default function ItemScreen() {
             </Text>
           ) : null}
           {nextDue(s, m) ? <Text style={text.body}>Next: {nextDue(s, m)}</Text> : null}
+          {s.part ? <Text style={text.muted}>{s.part}</Text> : null}
         </Card>
       ))}
       {showAdd ? (
