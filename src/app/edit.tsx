@@ -1,7 +1,7 @@
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { Banner, Button, Chip, Field, Row, colors, text } from '../components/ui';
+import { Alert, StyleSheet, Text, View } from 'react-native';
+import { Banner, Button, Chip, Field, FormScroll, Row, colors, text } from '../components/ui';
 import { deleteItem, saveItem, useSheet } from '../lib/api';
 import { isISODate, type Item, type Meter } from '../lib/format';
 
@@ -34,6 +34,7 @@ export default function EditItem() {
       reading: null,
       readingUpdated: '',
       purchased: '',
+      vin: '',
       notes: '',
     },
   );
@@ -83,7 +84,7 @@ export default function EditItem() {
     ]);
 
   return (
-    <ScrollView contentContainerStyle={styles.wrap} keyboardShouldPersistTaps="handled">
+    <FormScroll contentContainerStyle={styles.wrap}>
       <Stack.Screen options={{ title: isNew ? 'Add item' : `Edit ${existing!.name}` }} />
       {err && (
         <Banner tone="warn">
@@ -129,6 +130,9 @@ export default function EditItem() {
         </View>
       </Row>
       <Field label="Model" value={f.model} onChangeText={(v) => set({ model: v })} />
+      {f.type === 'Vehicle' || f.vin ? (
+        <Field label="VIN (optional)" value={f.vin} onChangeText={(v) => set({ vin: v.replace(/\s/g, '').toUpperCase() })} caps />
+      ) : null}
       <Field
         label="Purchase date (optional)"
         value={f.purchased}
@@ -166,7 +170,7 @@ export default function EditItem() {
           Remove {existing!.name}
         </Text>
       )}
-    </ScrollView>
+    </FormScroll>
   );
 }
 

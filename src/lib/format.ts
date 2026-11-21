@@ -15,6 +15,7 @@ export type Item = {
   readingUpdated: string; // yyyy-MM-dd or ''
   notes: string;
   purchased: string; // yyyy-MM-dd or ''
+  vin: string;
 };
 
 export type ServiceEntry = {
@@ -91,7 +92,7 @@ export function formatReading(n: number | null, m: Meter): string {
 
 export function formatCost(n: number | null): string {
   if (n === null) return '';
-  return `$${n.toFixed(2)}`;
+  return `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 /** Local date as yyyy-MM-dd. */
@@ -147,7 +148,9 @@ export function newestFirst(log: ServiceEntry[]): ServiceEntry[] {
 }
 
 /** Counts and highlights for an item's summary. */
-export function summarize(it: Item, data: SheetData) {
+export function summarize(it: Item, data: SheetData, today: string = toISODate(new Date())) {
+  const [y, mo, d] = today.split('-').map(Number);
+  const sixMonthsAgo = toISODate(new Date(y, mo - 1 - 6, d));
   const schedule = data.schedule.filter((s) => s.item === it.name);
   const log = newestFirst(data.log.filter((e) => e.item === it.name));
   const count = (st: Status) => schedule.filter((s) => s.status === st).length;
@@ -160,6 +163,7 @@ export function summarize(it: Item, data: SheetData) {
     next: upcoming[0] ?? null,
     last: log[0] ?? null,
     spent: log.reduce((sum, e) => sum + (e.cost ?? 0), 0),
+    spent6mo: log.filter((e) => e.date > sixMonthsAgo && e.date <= today).reduce((sum, e) => sum + (e.cost ?? 0), 0),
   };
 }
 

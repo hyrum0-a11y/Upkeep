@@ -1,7 +1,7 @@
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { Banner, Button, Card, Field, Row, StatusPill, colors, text } from '../components/ui';
+import { Alert, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { Banner, Button, Card, Field, FormScroll, Row, StatusPill, colors, text } from '../components/ui';
 import { deleteReading, deleteSchedule, refresh, saveSchedule, setReading, updateReading, useSheet } from '../lib/api';
 import {
   byUrgency,
@@ -105,11 +105,7 @@ export default function ItemScreen() {
     });
 
   return (
-    <ScrollView
-      contentContainerStyle={styles.wrap}
-      refreshControl={<RefreshControl refreshing={loading} onRefresh={refresh} />}
-      keyboardShouldPersistTaps="handled"
-    >
+    <FormScroll contentContainerStyle={styles.wrap} refreshControl={<RefreshControl refreshing={loading} onRefresh={refresh} />}>
       <Stack.Screen
         options={{
           title: it.name,
@@ -125,6 +121,7 @@ export default function ItemScreen() {
         }}
       />
       {title ? <Text style={text.muted}>{title}</Text> : null}
+      {it.vin ? <Text style={text.muted}>VIN {it.vin}</Text> : null}
       {it.notes ? <Text style={text.muted}>{it.notes}</Text> : null}
 
       {(msg || error) && (
@@ -149,7 +146,11 @@ export default function ItemScreen() {
             Last: {sum.last.service}, {formatDate(sum.last.date)}
           </Text>
         ) : null}
-        {sum.spent > 0 ? <Text style={text.body}>Spent so far: {formatCost(sum.spent)}</Text> : null}
+        {sum.spent > 0 ? (
+          <Text style={text.body}>
+            Spent: {formatCost(sum.spent)} total · {formatCost(sum.spent6mo)} last 6 months
+          </Text>
+        ) : null}
         {usage !== null && m ? <Text style={text.body}>About {formatReading(usage, m)} per month</Text> : null}
       </Card>
 
@@ -241,7 +242,15 @@ export default function ItemScreen() {
         </Card>
       ) : null}
 
-      <Button label={`＋ Log service for ${it.name}`} onPress={() => router.push({ pathname: '/add', params: { item: it.name } })} />
+      <Row>
+        <Button label="＋ Log service" onPress={() => router.push({ pathname: '/add', params: { item: it.name } })} style={{ flex: 1 }} />
+        <Button
+          label="＋ Log repair"
+          variant="outline"
+          onPress={() => router.push({ pathname: '/add', params: { item: it.name, repair: '1' } })}
+          style={{ flex: 1 }}
+        />
+      </Row>
 
       <Text style={text.section}>Schedule</Text>
       {schedule.length === 0 && <Text style={text.muted}>No scheduled services yet. Add one below.</Text>}
@@ -382,7 +391,7 @@ export default function ItemScreen() {
           {e.notes ? <Text style={text.body}>{e.notes}</Text> : null}
         </Card>
       ))}
-    </ScrollView>
+    </FormScroll>
   );
 }
 

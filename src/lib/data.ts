@@ -66,6 +66,7 @@ export function parseStore(json: string): Store {
         reading: num(r.reading),
         readingUpdated: str(r.readingUpdated),
         purchased: str(r.purchased),
+        vin: str(r.vin),
         notes: str(r.notes),
       }))
       .filter((i) => i.name),

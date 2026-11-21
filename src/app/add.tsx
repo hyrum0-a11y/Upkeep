@@ -1,21 +1,23 @@
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { Banner, Button, Chip, Field, Row, colors, text } from '../components/ui';
+import { Alert, StyleSheet, Text, View } from 'react-native';
+import { Banner, Button, Chip, Field, FormScroll, Row, colors, text } from '../components/ui';
 import { addService, deleteService, updateService, useSheet } from '../lib/api';
 import { formatDate, formatReading, isISODate, parseNumber, toISODate } from '../lib/format';
 
-const OTHER = 'Other…';
+const OTHER = 'Repair / other…';
 
 export default function AddService() {
   // ?id=… edits an existing entry; otherwise this logs a new one (optionally prefilled).
-  const params = useLocalSearchParams<{ id?: string; item?: string; service?: string; reading?: string }>();
+  const params = useLocalSearchParams<{ id?: string; item?: string; service?: string; reading?: string; repair?: string }>();
   const { data } = useSheet();
   const items = data?.items ?? [];
   const old = params.id ? data?.log.find((e) => e.id === params.id) : undefined;
   const scheduled = (it: string, svc: string) => !!data?.schedule.some((s) => s.item === it && s.service === svc);
   const [item, setItem] = useState(old?.item ?? params.item ?? (items.length === 1 ? items[0].name : ''));
-  const [service, setService] = useState(old ? (scheduled(old.item, old.service) ? old.service : OTHER) : (params.service ?? ''));
+  const [service, setService] = useState(
+    old ? (scheduled(old.item, old.service) ? old.service : OTHER) : params.repair ? OTHER : (params.service ?? ''),
+  );
   const [otherName, setOtherName] = useState(old && !scheduled(old.item, old.service) ? old.service : '');
   const [date, setDate] = useState(old?.date ?? toISODate(new Date()));
   const [reading, setReadingText] = useState(old ? (old.reading !== null ? String(old.reading) : '') : (params.reading ?? ''));
@@ -52,7 +54,7 @@ export default function AddService() {
   }
 
   return (
-    <ScrollView contentContainerStyle={styles.wrap} keyboardShouldPersistTaps="handled">
+    <FormScroll contentContainerStyle={styles.wrap}>
       {old && <Stack.Screen options={{ title: 'Edit entry' }} />}
       {params.id && !old ? <Text style={text.muted}>This entry is gone. It may have been deleted.</Text> : null}
       {err && (
@@ -85,9 +87,18 @@ export default function AddService() {
             ))}
           </Row>
           {service === OTHER && (
-            <Field label="What was done" value={otherName} onChangeText={setOtherName} placeholder="e.g. New battery" />
+            <Field
+              label="What was done"
+              value={otherName}
+              onChangeText={setOtherName}
+              placeholder="e.g. Engine trouble: replaced coil pack"
+            />
           )}
-          {service === OTHER && <Text style={text.muted}>Only names that match the schedule count toward due dates.</Text>}
+          {service === OTHER && (
+            <Text style={text.muted}>
+              One-off repairs show in the history and count toward money spent. Only scheduled names count toward due dates.
+            </Text>
+          )}
         </>
       ) : null}
 
@@ -141,7 +152,7 @@ export default function AddService() {
           Delete this entry
         </Text>
       )}
-    </ScrollView>
+    </FormScroll>
   );
 }
 

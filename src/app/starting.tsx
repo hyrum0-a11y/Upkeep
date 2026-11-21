@@ -1,7 +1,7 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
-import { Banner, Button, Card, Field, Row, text } from '../components/ui';
+import { StyleSheet, Text, View } from 'react-native';
+import { Banner, Button, Card, Field, FormScroll, Row, text } from '../components/ui';
 import { addServices, useSheet } from '../lib/api';
 import { formatReading, interval, isISODate, parseNumber } from '../lib/format';
 
@@ -48,7 +48,7 @@ export default function StartingPoints() {
   }
 
   return (
-    <ScrollView contentContainerStyle={styles.wrap} keyboardShouldPersistTaps="handled">
+    <FormScroll contentContainerStyle={styles.wrap}>
       <Text style={text.body}>
         Roughly when was each one last done{m ? `, and at what ${m === 'hours' ? 'hours' : 'mileage'}` : ''}? A best guess is fine. Leave a
         row blank if you have no idea; it will stay "No record".
@@ -89,7 +89,7 @@ export default function StartingPoints() {
         </Card>
       ))}
       {rows.length > 0 && <Button label={busy ? 'Saving…' : 'Save starting points'} onPress={save} disabled={busy} />}
-    </ScrollView>
+    </FormScroll>
   );
 }
 

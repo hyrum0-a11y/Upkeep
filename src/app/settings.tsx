@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Text } from 'react-native';
-import { Banner, Button, Field, text } from '../components/ui';
+import { StyleSheet, Text } from 'react-native';
+import { Banner, Button, Field, FormScroll, text } from '../components/ui';
 import { loadSettings, markConfigured, saveSettings, testConnection } from '../lib/api';
 import { BUILD_NUMBER } from '../lib/update';
 
@@ -20,7 +20,14 @@ export default function SettingsScreen() {
   }, []);
 
   async function testAndSave() {
-    if (!/^[\w.-]+\/[\w.-]+$/.test(repo.trim().replace(/^https?:\/\/github\.com\//, '').replace(/\/$/, ''))) {
+    if (
+      !/^[\w.-]+\/[\w.-]+$/.test(
+        repo
+          .trim()
+          .replace(/^https?:\/\/github\.com\//, '')
+          .replace(/\/$/, ''),
+      )
+    ) {
       setResult({ ok: false, msg: 'The repo should look like owner/name, e.g. hyrum0-a11y/Upkeep-data.' });
       return;
     }
@@ -43,7 +50,7 @@ export default function SettingsScreen() {
   }
 
   return (
-    <ScrollView contentContainerStyle={styles.wrap} keyboardShouldPersistTaps="handled">
+    <FormScroll contentContainerStyle={styles.wrap}>
       <Text style={text.section}>Data on GitHub</Text>
       <Text style={text.muted}>
         The private repo that holds upkeep.json, and a fine-grained token for just that repo (Contents: Read and write). Stored only on this
@@ -60,7 +67,7 @@ export default function SettingsScreen() {
 
       <Text style={text.section}>About</Text>
       <Text style={text.muted}>Upkeep · build {BUILD_NUMBER || 'dev'}</Text>
-    </ScrollView>
+    </FormScroll>
   );
 }
 
