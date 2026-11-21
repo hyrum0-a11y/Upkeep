@@ -14,6 +14,7 @@ export type Item = {
   reading: number | null;
   readingUpdated: string; // yyyy-MM-dd or ''
   notes: string;
+  purchased: string; // yyyy-MM-dd or ''
 };
 
 export type ServiceEntry = {
@@ -81,6 +82,7 @@ export function parseSheet(raw: { items?: Row[]; log?: Row[]; schedule?: Row[]; 
         reading: num(r['Current reading']),
         readingUpdated: str(r['Reading updated']),
         notes: str(r['Notes']),
+        purchased: str(r['Purchase date']),
       }))
       .filter((v) => v.name),
     log: (raw.log ?? [])
@@ -191,6 +193,30 @@ export function byUrgency(items: ScheduleItem[]): ScheduleItem[] {
 /** Newest first (by date, then by reading). */
 export function newestFirst(log: ServiceEntry[]): ServiceEntry[] {
   return [...log].sort((a, b) => b.date.localeCompare(a.date) || (b.reading ?? 0) - (a.reading ?? 0));
+}
+
+/** Counts and highlights for an item's summary. */
+export function summarize(it: Item, data: SheetData) {
+  const schedule = data.schedule.filter((s) => s.item === it.name);
+  const log = newestFirst(data.log.filter((e) => e.item === it.name));
+  const count = (st: Status) => schedule.filter((s) => s.status === st).length;
+  const upcoming = byUrgency(schedule.filter((s) => s.status !== 'No record' && (s.nextDate || s.nextReading !== null)));
+  return {
+    overdue: count('Overdue'),
+    dueSoon: count('Due soon'),
+    ok: count('OK'),
+    noRecord: count('No record'),
+    next: upcoming[0] ?? null,
+    last: log[0] ?? null,
+    spent: log.reduce((sum, e) => sum + (e.cost ?? 0), 0),
+  };
+}
+
+/** One line for a list: "2 overdue · 1 due soon", "All up to date", or "No records yet". */
+export function statusLine(s: ReturnType<typeof summarize>): string {
+  if (s.overdue || s.dueSoon) return [s.overdue && `${s.overdue} overdue`, s.dueSoon && `${s.dueSoon} due soon`].filter(Boolean).join(' · ');
+  if (s.ok) return s.noRecord ? `Up to date · ${s.noRecord} with no record` : 'All up to date';
+  return s.noRecord ? 'No records yet' : 'Nothing scheduled';
 }
 
 /** "2003 Honda Odyssey EX". */

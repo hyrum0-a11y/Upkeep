@@ -16,7 +16,7 @@ import {
 
 const raw = {
   items: [
-    { Item: 'Odyssey', Type: 'Vehicle', Year: 2003, Make: 'Honda', Model: 'Odyssey EX', Meter: 'miles', 'Current reading': 201234, 'Reading updated': '2026-11-20', Notes: '' },
+    { Item: 'Odyssey', Type: 'Vehicle', Year: 2003, Make: 'Honda', Model: 'Odyssey EX', Meter: 'miles', 'Current reading': 201234, 'Reading updated': '2026-11-20', Notes: '', 'Purchase date': '2026-10-10' },
     { Item: 'Water filter', Type: 'Equipment', Year: '', Make: '', Model: '', Meter: '', 'Current reading': '', 'Reading updated': '', Notes: '' },
     { Item: 'Mower', Type: '', Meter: 'Hours', 'Current reading': 87 },
     { Item: '', Type: '' },
@@ -48,6 +48,8 @@ test('parseSheet reads rows by header and skips blanks', () => {
   assert.equal(d.schedule[1].nextReading, 201000);
   assert.equal(d.schedule[0].status, 'No record');
   assert.equal(d.schedule[1].part, '5W-20');
+  assert.equal(d.items[0].purchased, '2026-10-10');
+  assert.equal(d.items[1].purchased, '');
   assert.equal(d.schedule[0].part, '');
 });
 
@@ -82,4 +84,18 @@ test('input parsing', () => {
   assert.ok(isISODate('2026-02-28'));
   assert.ok(!isISODate('2026-02-30'));
   assert.ok(!isISODate('11/20/2026'));
+});
+
+test('summarize counts statuses and finds next and last', async () => {
+  const { summarize, statusLine } = await import('./format.ts');
+  const d = parseSheet(raw);
+  const s = summarize(d.items[0], d);
+  assert.equal(s.overdue, 1);
+  assert.equal(s.noRecord, 1);
+  assert.equal(s.next?.service, 'Oil & filter');
+  assert.equal(s.last?.id, 'a1');
+  assert.equal(s.spent, 45.5);
+  assert.equal(statusLine(s), '1 overdue');
+  assert.equal(statusLine(summarize(d.items[1], d)), 'All up to date');
+  assert.equal(statusLine(summarize(d.items[2], d)), 'Nothing scheduled');
 });

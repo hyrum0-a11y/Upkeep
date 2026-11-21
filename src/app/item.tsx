@@ -14,6 +14,8 @@ import {
   newestFirst,
   nextDue,
   parseNumber,
+  statusLine,
+  summarize,
 } from '../lib/format';
 
 export default function ItemScreen() {
@@ -38,7 +40,8 @@ export default function ItemScreen() {
   const m = it.meter;
   const unit = m === 'hours' ? 'hours' : 'miles';
   const schedule = byUrgency(data.schedule.filter((s) => s.item === it.name));
-  const noRecord = schedule.filter((s) => s.status === 'No record').length;
+  const sum = summarize(it, data);
+  const noRecord = sum.noRecord;
   const history = newestFirst(data.log.filter((e) => e.item === it.name));
   const title = itemTitle(it);
 
@@ -89,6 +92,25 @@ export default function ItemScreen() {
       <Stack.Screen options={{ title: it.name }} />
       {title ? <Text style={text.muted}>{title}</Text> : null}
       {it.notes ? <Text style={text.muted}>{it.notes}</Text> : null}
+
+      <Card>
+        <Text style={text.section}>Summary</Text>
+        <Text style={[text.body, { fontWeight: '600', color: sum.overdue ? colors.danger : sum.dueSoon ? colors.warn : colors.text }]}>
+          {statusLine(sum)}
+        </Text>
+        {it.purchased ? <Text style={text.body}>Purchased {formatDate(it.purchased)}</Text> : null}
+        {sum.next ? (
+          <Text style={text.body}>
+            Next: {sum.next.service}, {nextDue(sum.next, m)}
+          </Text>
+        ) : null}
+        {sum.last ? (
+          <Text style={text.body}>
+            Last: {sum.last.service}, {formatDate(sum.last.date)}
+          </Text>
+        ) : null}
+        {sum.spent > 0 ? <Text style={text.body}>Spent so far: {formatCost(sum.spent)}</Text> : null}
+      </Card>
 
       {(msg || error) && (
         <Banner tone="warn">

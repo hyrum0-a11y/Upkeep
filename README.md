@@ -4,9 +4,9 @@ An Android app for the family's maintenance log: vehicles and household equipmen
 
 ## What it does
 
-- **Home:** what's overdue or due soon across everything, then a card for each vehicle and piece of equipment.
+- **Home:** a tappable row for each vehicle and piece of equipment (with its status), then everything overdue or due soon.
 - **Log service:** pick the item and the service (oil change, filter change, …), the date, the reading (miles or hours, if it has a meter), cost, shop, notes. It's added to the sheet, and the item's reading moves forward if the new one is higher.
-- **Item page:** update the odometer or hour meter, see each scheduled service with last done / next due and what to buy (Part / spec), add schedule items, and browse or delete past entries.
+- **Item page:** a summary (status, purchase date, next due, last service, total spent), then update the odometer or hour meter, see each scheduled service with last done / next due and what to buy (Part / spec), add schedule items, and browse or delete past entries.
 - **Set starting points:** for services with no record yet, enter roughly when each was last done (a year is fine) in one go, so they can start coming due.
 - **Updates:** when a new build is out, the home screen shows **Download & install** (same as RussianSpeak).
 
@@ -15,7 +15,7 @@ An Android app for the family's maintenance log: vehicles and household equipmen
 | Tab | What's in it |
 |---|---|
 | Due | Everything Overdue or Due soon, most urgent first and color-coded. The one tab to check (e.g. on an iPhone). |
-| Equipment | One row per vehicle or piece of equipment. **Type** is Vehicle or Equipment. **Meter** is miles, hours, or blank (no meter, like a water filter). |
+| Equipment | One row per vehicle or piece of equipment. **Type** is Vehicle or Equipment. **Meter** is miles, hours, or blank (no meter, like a water filter). **Purchase date** is optional. |
 | Service Log | Every service. The app adds rows; you can type rows in too. |
 | Schedule | How often each service is due. Last done, next due and Status are formulas that read the Service Log. **Part / spec** says what to buy. |
 

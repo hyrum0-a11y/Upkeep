@@ -21,7 +21,7 @@
 
 var SHEETS = { due: 'Due', items: 'Equipment', log: 'Service Log', schedule: 'Schedule', readme: 'Read me' };
 
-var ITEM_HEADERS = ['Item', 'Type', 'Year', 'Make', 'Model', 'Meter', 'Current reading', 'Reading updated', 'Notes'];
+var ITEM_HEADERS = ['Item', 'Type', 'Year', 'Make', 'Model', 'Meter', 'Current reading', 'Reading updated', 'Notes', 'Purchase date'];
 var LOG_HEADERS = ['ID', 'Date', 'Item', 'Reading', 'Service', 'Cost', 'Shop / who', 'Notes', 'Entered'];
 // Formulas fill columns E–J, so new columns go after Status.
 var SCHEDULE_HEADERS = ['Item', 'Service', 'Every (mi/hr)', 'Every (months)', 'Last done', 'Last reading',
@@ -30,11 +30,11 @@ var DUE_HEADERS = ['Status', 'Item', 'Service', 'Next due date', 'Next due readi
 
 // Meter: "miles", "hours", or blank for things without one (like a water filter).
 var START_ITEMS = [
-  ['Odyssey', 'Vehicle', 2003, 'Honda', 'Odyssey EX', 'miles', '', '', ''],
-  ['Sentra', 'Vehicle', 2020, 'Nissan', 'Sentra SV', 'miles', '', '', ''],
-  ['Silverado', 'Vehicle', 2000, 'Chevrolet', 'Silverado', 'miles', '', '', ''],
-  ["Claire's Hyundai", 'Vehicle', '', 'Hyundai', '', 'miles', '', '', 'Add the year and model'],
-  ['Water filter', 'Equipment', '', '', '', '', '', '', 'Add the filter type or part number'],
+  ['Odyssey', 'Vehicle', 2003, 'Honda', 'Odyssey EX', 'miles', '', '', '', ''],
+  ['Sentra', 'Vehicle', 2020, 'Nissan', 'Sentra SV', 'miles', '', '', '', ''],
+  ['Silverado', 'Vehicle', 2000, 'Chevrolet', 'Silverado', 'miles', '', '', '', ''],
+  ["Claire's Hyundai", 'Vehicle', '', 'Hyundai', '', 'miles', '', '', 'Add the year and model', ''],
+  ['Water filter', 'Equipment', '', '', '', '', '', '', 'Add the filter type or part number', ''],
 ];
 
 // Recommended schedule [item, service, every miles/hours, every months, part / spec].
@@ -153,10 +153,11 @@ function buildSheet_(ss) {
   readme.setColumnWidth(1, 900);
 
   var items = ss.insertSheet(SHEETS.items, 1);
-  header_(items, ITEM_HEADERS, [140, 90, 60, 100, 110, 70, 120, 120, 280]);
+  header_(items, ITEM_HEADERS, [140, 90, 60, 100, 110, 70, 120, 120, 280, 110]);
   items.getRange(2, 1, START_ITEMS.length, ITEM_HEADERS.length).setValues(START_ITEMS);
   items.getRange('G2:G').setNumberFormat('#,##0');
   items.getRange('H2:H').setNumberFormat('mmm d, yyyy');
+  items.getRange('J2:J').setNumberFormat('mmm d, yyyy');
   items.getRange('B2:B').setDataValidation(list_(['Vehicle', 'Equipment']));
   items.getRange('F2:F').setDataValidation(list_(['miles', 'hours']));
 
@@ -208,6 +209,17 @@ function upgrade() {
     sch.setColumnWidth(c, 320);
     notes.push('Added the Part / spec column.');
   }
+  // Purchase date column on Equipment.
+  var eqs = sheet_(SHEETS.items);
+  var eqHeaders = eqs.getRange(1, 1, 1, eqs.getLastColumn()).getValues()[0].map(String);
+  if (eqHeaders.indexOf('Purchase date') < 0) {
+    var pc = eqHeaders.length + 1;
+    eqs.getRange(1, pc).setValue('Purchase date').setFontWeight('bold').setFontColor('#FFFFFF').setBackground('#1F4E8C').setWrap(true);
+    eqs.getRange(2, pc, eqs.getMaxRows() - 1, 1).setNumberFormat('mmm d, yyyy');
+    eqs.setColumnWidth(pc, 110);
+    notes.push('Added the Purchase date column on Equipment.');
+  }
+
   var col = { item: colOf_(sch, 'Item'), service: colOf_(sch, 'Service'), every: colOf_(sch, 'Every (mi/hr)'),
     months: colOf_(sch, 'Every (months)'), part: colOf_(sch, 'Part / spec') };
 

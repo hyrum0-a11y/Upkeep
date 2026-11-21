@@ -4,7 +4,7 @@ import { Linking, Pressable, RefreshControl, ScrollView, StyleSheet, Text } from
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Banner, Button, Card, Row, StatusPill, colors, text } from '../components/ui';
 import { refresh, useSheet } from '../lib/api';
-import { byUrgency, formatDate, formatReading, isVehicle, itemTitle, nextDue, type Item, type SheetData } from '../lib/format';
+import { byUrgency, formatReading, isVehicle, itemTitle, nextDue, statusLine, summarize, type Item, type SheetData } from '../lib/format';
 import { checkForUpdate, installUpdate, type Update } from '../lib/update';
 
 export default function Home() {
@@ -71,9 +71,19 @@ export default function Home() {
         <>
           <Button label="＋ Log service" onPress={() => router.push('/add')} />
 
-          <Text style={text.section}>Needs attention</Text>
+          {vehicles.length > 0 && <Text style={text.section}>Vehicles</Text>}
+          {vehicles.map((it) => (
+            <ItemRow key={it.name} it={it} data={data} onPress={() => open(it.name)} />
+          ))}
+
+          {equipment.length > 0 && <Text style={text.section}>Equipment</Text>}
+          {equipment.map((it) => (
+            <ItemRow key={it.name} it={it} data={data} onPress={() => open(it.name)} />
+          ))}
+
+          <Text style={text.section}>Overdue & due soon</Text>
           {attention.length === 0 ? (
-            <Text style={text.muted}>Nothing overdue or due soon. 👍</Text>
+            <Text style={text.muted}>Nothing overdue or due soon. Services with no record yet can't come due.</Text>
           ) : (
             attention.map((s) => (
               <Card key={`${s.item}|${s.service}`} onPress={() => open(s.item)}>
@@ -88,16 +98,6 @@ export default function Home() {
             ))
           )}
 
-          {vehicles.length > 0 && <Text style={text.section}>Vehicles</Text>}
-          {vehicles.map((it) => (
-            <ItemCard key={it.name} it={it} data={data} onPress={() => open(it.name)} />
-          ))}
-
-          {equipment.length > 0 && <Text style={text.section}>Equipment</Text>}
-          {equipment.map((it) => (
-            <ItemCard key={it.name} it={it} data={data} onPress={() => open(it.name)} />
-          ))}
-
           {data.sheetUrl ? (
             <Pressable onPress={() => Linking.openURL(data.sheetUrl)} style={{ paddingVertical: 8 }}>
               <Text style={{ color: colors.primary, fontSize: 15, textAlign: 'center' }}>Open the Google Sheet</Text>
@@ -111,32 +111,19 @@ export default function Home() {
   );
 }
 
-function ItemCard({ it, data, onPress }: { it: Item; data: SheetData; onPress: () => void }) {
-  const items = data.schedule.filter((s) => s.item === it.name);
-  const overdue = items.filter((s) => s.status === 'Overdue').length;
-  const soon = items.filter((s) => s.status === 'Due soon').length;
-  const last = data.log.filter((e) => e.item === it.name).sort((a, b) => b.date.localeCompare(a.date))[0];
-  const title = itemTitle(it);
+/** One compact, tappable row per vehicle or piece of equipment. */
+function ItemRow({ it, data, onPress }: { it: Item; data: SheetData; onPress: () => void }) {
+  const sum = summarize(it, data);
+  const color = sum.overdue ? colors.danger : sum.dueSoon ? colors.warn : sum.ok ? colors.good : colors.muted;
+  const sub = [itemTitle(it), it.meter && it.reading !== null ? formatReading(it.reading, it.meter) : ''].filter(Boolean).join(' · ');
   return (
     <Card onPress={onPress}>
-      <Text style={text.h2}>{it.name}</Text>
-      {title ? <Text style={text.muted}>{title}</Text> : null}
-      {it.meter ? (
-        <Text style={text.body}>
-          {it.reading === null ? `${it.meter === 'hours' ? 'Hours' : 'Mileage'} not set yet` : formatReading(it.reading, it.meter)}
-          {it.readingUpdated ? <Text style={text.muted}>  (as of {formatDate(it.readingUpdated)})</Text> : null}
-        </Text>
-      ) : null}
-      {(overdue > 0 || soon > 0) && (
-        <Text style={[text.body, { color: overdue ? colors.danger : colors.warn, fontWeight: '600' }]}>
-          {[overdue && `${overdue} overdue`, soon && `${soon} due soon`].filter(Boolean).join(' · ')}
-        </Text>
-      )}
-      {last && (
-        <Text style={text.muted}>
-          Last: {last.service}, {formatDate(last.date)}
-        </Text>
-      )}
+      <Row style={{ justifyContent: 'space-between' }}>
+        <Text style={[text.h2, { flex: 1 }]}>{it.name}</Text>
+        <Text style={{ color: colors.muted, fontSize: 22 }}>›</Text>
+      </Row>
+      {sub ? <Text style={text.muted}>{sub}</Text> : null}
+      <Text style={[text.body, { color, fontWeight: '600' }]}>{statusLine(sum)}</Text>
     </Card>
   );
 }
