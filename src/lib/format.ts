@@ -42,11 +42,29 @@ export type ScheduleItem = {
   status: Status;
 };
 
+/** An odometer / hour meter reading on a date, for tracking how much an item is used. */
+export type Reading = { id: string; item: string; date: string; reading: number };
+
 export type SheetData = {
   items: Item[];
   log: ServiceEntry[];
   schedule: ScheduleItem[];
+  readings: Reading[];
 };
+
+/** Average use per month from the readings and log, e.g. 850 (miles/month). Needs 30+ days of span. */
+export function perMonth(item: string, data: SheetData): number | null {
+  const pts = [
+    ...data.readings.filter((r) => r.item === item),
+    ...data.log.filter((e) => e.item === item && e.reading !== null).map((e) => ({ date: e.date, reading: e.reading as number })),
+  ].sort((a, b) => a.date.localeCompare(b.date));
+  if (pts.length < 2) return null;
+  const first = pts[0];
+  const last = pts[pts.length - 1];
+  const days = (Date.parse(last.date) - Date.parse(first.date)) / 86_400_000;
+  if (!(days >= 30) || last.reading <= first.reading) return null;
+  return ((last.reading - first.reading) / days) * 30.44;
+}
 
 export const isVehicle = (it: Item) => it.type.toLowerCase() === 'vehicle';
 
@@ -147,7 +165,8 @@ export function summarize(it: Item, data: SheetData) {
 
 /** One line for a list: "2 overdue · 1 due soon", "All up to date", or "No records yet". */
 export function statusLine(s: ReturnType<typeof summarize>): string {
-  if (s.overdue || s.dueSoon) return [s.overdue && `${s.overdue} overdue`, s.dueSoon && `${s.dueSoon} due soon`].filter(Boolean).join(' · ');
+  if (s.overdue || s.dueSoon)
+    return [s.overdue && `${s.overdue} overdue`, s.dueSoon && `${s.dueSoon} due soon`].filter(Boolean).join(' · ');
   if (s.ok) return s.noRecord ? `Up to date · ${s.noRecord} with no record` : 'All up to date';
   return s.noRecord ? 'No records yet' : 'Nothing scheduled';
 }

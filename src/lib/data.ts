@@ -1,7 +1,7 @@
 // The data file (upkeep.json in the private data repo) and everything worked out from it.
 // Plain TypeScript, no React Native imports, so it runs in unit tests.
 
-import type { Item, Meter, ScheduleItem, ServiceEntry, SheetData, Status } from './format';
+import type { Item, Meter, Reading, ScheduleItem, ServiceEntry, SheetData, Status } from './format';
 
 export const DATA_FILE = 'upkeep.json';
 
@@ -21,10 +21,11 @@ export type Store = {
   items: Item[];
   schedule: StoredSchedule[];
   log: StoredEntry[];
+  readings: Reading[]; // mileage / hours history
 };
 
 export function emptyStore(): Store {
-  return { version: 1, items: [], schedule: [], log: [] };
+  return { version: 1, items: [], schedule: [], log: [], readings: [] };
 }
 
 // ---------- reading the file ----------
@@ -84,13 +85,16 @@ export function parseStore(json: string): Store {
         entered: str(r.entered),
       }))
       .filter((e) => e.item && e.service),
+    readings: list(raw.readings)
+      .map((r) => ({ id: str(r.id), item: str(r.item), date: str(r.date), reading: num(r.reading) }))
+      .filter((r): r is Reading => !!(r.item && r.date && r.reading !== null)),
   };
 }
 
 /** Pretty JSON with one log entry per line, so GitHub diffs stay readable. */
 export function serializeStore(s: Store): string {
   const block = (rows: unknown[]) => (rows.length ? `[\n    ${rows.map((r) => JSON.stringify(r)).join(',\n    ')}\n  ]` : '[]');
-  return `{\n  "version": 1,\n  "items": ${block(s.items)},\n  "schedule": ${block(s.schedule)},\n  "log": ${block(s.log)}\n}\n`;
+  return `{\n  "version": 1,\n  "items": ${block(s.items)},\n  "schedule": ${block(s.schedule)},\n  "log": ${block(s.log)},\n  "readings": ${block(s.readings)}\n}\n`;
 }
 
 // ---------- due math ----------
@@ -138,7 +142,7 @@ export function compute(store: Store, today: string): SheetData {
       status = 'Due soon';
     return { ...s, lastDone, lastReading, nextDate, nextReading, status };
   });
-  return { items: store.items, log: store.log, schedule };
+  return { items: store.items, log: store.log, schedule, readings: store.readings };
 }
 
 // ---------- changes (each returns a new Store) ----------
@@ -182,9 +186,27 @@ export function deleteEntry(s: Store, id: string): Store {
   return { ...s, log: s.log.filter((e) => e.id !== id) };
 }
 
-export function setReading(s: Store, item: string, reading: number, today: string): Store {
+/**
+ * Record a reading on a date (default today). The item's current reading becomes the one with the
+ * latest date, so back-dating an old reading doesn't overwrite today's.
+ */
+export function setReading(s: Store, item: string, reading: number, date: string, id: () => string = newId): Store {
   if (!s.items.some((i) => i.name === item)) throw new Error(`Item not found: ${item}`);
-  return { ...s, items: s.items.map((i) => (i.name === item ? { ...i, reading, readingUpdated: today } : i)) };
+  return syncCurrent({ ...s, readings: [...s.readings, { id: id(), item, date, reading }] }, item);
+}
+
+export function deleteReading(s: Store, id: string): Store {
+  const r = s.readings.find((x) => x.id === id);
+  if (!r) throw new Error('Reading not found. It may already be deleted.');
+  return syncCurrent({ ...s, readings: s.readings.filter((x) => x.id !== id) }, r.item);
+}
+
+/** Item's current reading = latest-dated reading (ties: the one added last). */
+function syncCurrent(s: Store, item: string): Store {
+  const mine = s.readings.filter((r) => r.item === item);
+  if (!mine.length) return s;
+  const latest = mine.reduce((a, b) => (b.date >= a.date ? b : a));
+  return { ...s, items: s.items.map((i) => (i.name === item ? { ...i, reading: latest.reading, readingUpdated: latest.date } : i)) };
 }
 
 /** Add or update an item. Renaming also renames it in the schedule and log. */
@@ -202,6 +224,7 @@ export function saveItem(s: Store, item: Item, oldName?: string): Store {
     items: s.items.map((i) => (i.name === oldName ? next : i)),
     schedule: s.schedule.map(rename),
     log: s.log.map(rename),
+    readings: s.readings.map(rename),
   };
 }
 

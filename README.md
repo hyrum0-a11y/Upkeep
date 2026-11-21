@@ -5,7 +5,7 @@ An Android app for the family's maintenance log: vehicles and household equipmen
 ## What it does
 
 - **Home:** a tappable row for each vehicle and piece of equipment with its status; tap the mileage (or **Update miles**) to change it, then everything overdue or due soon. **＋ Add a vehicle or equipment** at the bottom.
-- **Item page:** a summary (status, purchase date, next due, last service, total spent), the odometer or hour meter, and a compact list of services. Tap a service to expand it: details, what to buy, **Log it as done** (opens Log service with it picked and the mileage filled in) and **Edit schedule** (rename, change how often or the part, or remove). Tap a history entry to fix or delete it. **Edit** at the top changes the item's details, including purchase date.
+- **Item page:** a summary (status, purchase date, next due, last service, total spent), the odometer or hour meter (save a reading for any date; the history is listed, tap one to delete it, and the summary shows average miles per month), and a compact list of services. Tap a service to expand it: details, what to buy, **Log it as done** (opens Log service with it picked and the mileage filled in) and **Edit schedule** (rename, change how often or the part, or remove). Tap a history entry to fix or delete it. **Edit** at the top changes the item's details, including purchase date.
 - **Log service:** pick the item and service, date, reading, cost, shop, notes. The item's reading moves forward if the new one is higher.
 - **Set starting points:** for services with no record yet, enter roughly when each was last done (a year is fine), all at once.
 - **Updates:** when a new build is out, the home screen shows **Download & install**.
@@ -14,7 +14,7 @@ Status is **Overdue**, **Due soon** (within 10% of the mileage interval, or with
 
 ## The data file
 
-`upkeep.json` in the data repo has three lists: `items`, `schedule` (how often) and `log` (what was done). The data repo's README describes every field. Each change in the app is one commit, so the history shows every edit. If the file changed on GitHub (for example Claude added something) the app reloads it and applies your change on top.
+`upkeep.json` in the data repo has four lists: `items`, `schedule` (how often), `log` (what was done) and `readings` (mileage/hours on a date). The data repo's README describes every field. Each change in the app is one commit, so the history shows every edit. If the file changed on GitHub (for example Claude added something) the app reloads it and applies your change on top.
 
 ## Connect the app (one time)
 

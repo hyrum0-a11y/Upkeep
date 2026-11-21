@@ -193,8 +193,13 @@ export function deleteService(id: string) {
   return change('Delete a log entry', (s) => D.deleteEntry(s, id));
 }
 
-export function setReading(item: string, reading: number) {
-  return change(`${item} reading ${reading}`, (s) => D.setReading(s, item, reading, today()));
+/** Record a reading on a date (default today). */
+export function setReading(item: string, reading: number, date: string = today()) {
+  return change(`${item} reading ${reading} on ${date}`, (s) => D.setReading(s, item, reading, date));
+}
+
+export function deleteReading(id: string) {
+  return change('Delete a reading', (s) => D.deleteReading(s, id));
 }
 
 /** Add or edit an item. A new item can come with starting schedule rows, all in one commit. */

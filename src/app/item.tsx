@@ -2,7 +2,7 @@ import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Banner, Button, Card, Field, Row, StatusPill, colors, text } from '../components/ui';
-import { deleteSchedule, refresh, saveSchedule, setReading, useSheet } from '../lib/api';
+import { deleteReading, deleteSchedule, refresh, saveSchedule, setReading, useSheet } from '../lib/api';
 import {
   byUrgency,
   formatCost,
@@ -13,7 +13,10 @@ import {
   meterLabel,
   newestFirst,
   nextDue,
+  isISODate,
   parseNumber,
+  perMonth,
+  toISODate,
   statusLine,
   summarize,
   type Meter,
@@ -24,6 +27,8 @@ export default function ItemScreen() {
   const { name } = useLocalSearchParams<{ name: string }>();
   const { data, loading, error } = useSheet();
   const [reading, setReadingText] = useState('');
+  const [readingDate, setReadingDate] = useState(toISODate(new Date()));
+  const [allReadings, setAllReadings] = useState(false);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
@@ -42,6 +47,8 @@ export default function ItemScreen() {
   const schedule = byUrgency(data.schedule.filter((s) => s.item === it.name));
   const history = newestFirst(data.log.filter((e) => e.item === it.name));
   const sum = summarize(it, data);
+  const readings = data.readings.filter((r) => r.item === it.name).sort((a, b) => b.date.localeCompare(a.date));
+  const usage = perMonth(it.name, data);
   const title = itemTitle(it);
 
   async function run(fn: () => Promise<unknown>, done?: () => void) {
@@ -60,12 +67,17 @@ export default function ItemScreen() {
   const saveReading = () => {
     const n = parseNumber(reading);
     if (n === null || Number.isNaN(n) || n < 0) return setMsg('Type the reading as a number.');
+    if (!isISODate(readingDate)) return setMsg('Date should look like 2026-11-21.');
     const go = () =>
       run(
-        () => setReading(it.name, n),
-        () => setReadingText(''),
+        () => setReading(it.name, n, readingDate),
+        () => {
+          setReadingText('');
+          setReadingDate(toISODate(new Date()));
+        },
       );
-    if (it.reading !== null && n < it.reading) {
+    // A lower number on a newer date is probably a typo (or fixing a guess).
+    if (it.reading !== null && n < it.reading && readingDate >= (it.readingUpdated || '')) {
       Alert.alert('Lower than before?', `It says ${formatReading(it.reading, m)}. Save ${formatReading(n, m)} anyway?`, [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Save', onPress: go },
@@ -135,6 +147,7 @@ export default function ItemScreen() {
           </Text>
         ) : null}
         {sum.spent > 0 ? <Text style={text.body}>Spent so far: {formatCost(sum.spent)}</Text> : null}
+        {usage !== null && m ? <Text style={text.body}>About {formatReading(usage, m)} per month</Text> : null}
       </Card>
 
       {m ? (
@@ -152,8 +165,37 @@ export default function ItemScreen() {
                 keyboardType="number-pad"
               />
             </View>
-            <Button label="Save" onPress={saveReading} disabled={busy || !reading.trim()} style={{ marginTop: 26 }} />
+            <View style={{ flex: 1 }}>
+              <Field label="On (date)" value={readingDate} onChangeText={setReadingDate} keyboardType="numbers-and-punctuation" />
+            </View>
           </Row>
+          <Button label="Save reading" onPress={saveReading} disabled={busy || !reading.trim()} />
+          {readings.length > 0 && (
+            <>
+              <Text style={[text.section, { marginTop: 8 }]}>History</Text>
+              {(allReadings ? readings : readings.slice(0, 5)).map((r) => (
+                <Pressable
+                  key={r.id}
+                  onPress={() =>
+                    Alert.alert(`${formatReading(r.reading, m)} on ${formatDate(r.date)}`, 'Delete this reading?', [
+                      { text: 'Cancel', style: 'cancel' },
+                      { text: 'Delete', style: 'destructive', onPress: () => run(() => deleteReading(r.id)) },
+                    ])
+                  }
+                  style={({ pressed }) => [styles.readingRow, pressed && { opacity: 0.6 }]}
+                >
+                  <Text style={text.body}>{formatReading(r.reading, m)}</Text>
+                  <Text style={text.muted}>{formatDate(r.date)}</Text>
+                </Pressable>
+              ))}
+              {readings.length > 5 && (
+                <Text style={{ color: colors.primary, fontSize: 15 }} onPress={() => setAllReadings(!allReadings)}>
+                  {allReadings ? 'Show fewer' : `Show all ${readings.length}`}
+                </Text>
+              )}
+              <Text style={text.muted}>Tap a reading to delete it.</Text>
+            </>
+          )}
         </Card>
       ) : null}
 
@@ -341,6 +383,7 @@ function ScheduleForm({
 
 const styles = StyleSheet.create({
   wrap: { padding: 16, gap: 12, paddingBottom: 40 },
+  readingRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6 },
   svcRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10 },
   svcDivider: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
 });
