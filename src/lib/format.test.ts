@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import * as D from './data.ts';
 import {
   byUrgency,
   formatDate,
@@ -11,51 +12,142 @@ import {
   newestFirst,
   nextDue,
   parseNumber,
-  parseSheet,
+  statusLine,
+  summarize,
 } from './format.ts';
 
-const raw = {
+const TODAY = '2026-11-21';
+
+const json = JSON.stringify({
+  version: 1,
   items: [
-    { Item: 'Odyssey', Type: 'Vehicle', Year: 2003, Make: 'Honda', Model: 'Odyssey EX', Meter: 'miles', 'Current reading': 201234, 'Reading updated': '2026-11-20', Notes: '', 'Purchase date': '2026-10-10' },
-    { Item: 'Water filter', Type: 'Equipment', Year: '', Make: '', Model: '', Meter: '', 'Current reading': '', 'Reading updated': '', Notes: '' },
-    { Item: 'Mower', Type: '', Meter: 'Hours', 'Current reading': 87 },
-    { Item: '', Type: '' },
-  ],
-  log: [
-    { ID: 'a1', Date: '2026-05-01', Item: 'Odyssey', Reading: 196000, Service: 'Oil & filter', Cost: 45.5, 'Shop / who': 'Me', Notes: '' },
-    { ID: 'a2', Date: '2026-11-01', Item: 'Water filter', Reading: '', Service: 'Filter change', Cost: '', 'Shop / who': '', Notes: '' },
+    {
+      name: 'Odyssey',
+      type: 'Vehicle',
+      year: 2003,
+      make: 'Honda',
+      model: 'Odyssey EX',
+      meter: 'miles',
+      reading: '201,234',
+      readingUpdated: '2026-11-20',
+      purchased: '2026-10-10',
+    },
+    { name: 'Water filter', type: 'Equipment', meter: '' },
+    { name: 'Mower', meter: 'Hours', reading: 87 },
+    { name: '' },
   ],
   schedule: [
-    { Item: 'Odyssey', Service: 'Coolant', 'Every (mi/hr)': 60000, 'Every (months)': 60, Status: 'No record' },
-    { Item: 'Odyssey', Service: 'Oil & filter', 'Every (mi/hr)': 5000, 'Every (months)': 6, 'Last done': '2026-05-01', 'Last reading': 196000, 'Next due date': '2026-11-01', 'Next due reading': 201000, Status: 'Overdue', 'Part / spec': '5W-20' },
-    { Item: 'Water filter', Service: 'Filter change', 'Every (mi/hr)': '', 'Every (months)': 6, 'Last done': '2026-11-01', 'Next due date': '2027-05-01', 'Next due reading': '', Status: 'OK' },
+    { item: 'Odyssey', service: 'Coolant', every: 60000, everyMonths: 60 },
+    { item: 'Odyssey', service: 'Oil & filter', every: 5000, everyMonths: 6, part: '5W-20' },
+    { item: 'Water filter', service: 'Filter change', everyMonths: 6 },
   ],
-  sheetUrl: 'https://example.com',
-};
-
-test('parseSheet reads rows by header and skips blanks', () => {
-  const d = parseSheet(raw);
-  assert.equal(d.items.length, 3);
-  assert.equal(d.items[0].reading, 201234);
-  assert.equal(d.items[0].meter, 'miles');
-  assert.equal(d.items[1].meter, '');
-  assert.equal(d.items[2].meter, 'hours');
-  assert.equal(d.items[2].type, 'Equipment');
-  assert.ok(isVehicle(d.items[0]) && !isVehicle(d.items[1]));
-  assert.equal(itemTitle(d.items[0]), '2003 Honda Odyssey EX');
-  assert.equal(d.log[1].reading, null);
-  assert.equal(d.log[0].cost, 45.5);
-  assert.equal(d.schedule[1].nextReading, 201000);
-  assert.equal(d.schedule[0].status, 'No record');
-  assert.equal(d.schedule[1].part, '5W-20');
-  assert.equal(d.items[0].purchased, '2026-10-10');
-  assert.equal(d.items[1].purchased, '');
-  assert.equal(d.schedule[0].part, '');
+  log: [
+    { id: 'a1', date: '2026-05-01', item: 'Odyssey', reading: 196000, service: 'Oil & filter', cost: 45.5, shop: 'Me' },
+    { id: 'a0', date: '2025-11-01', item: 'Odyssey', reading: 191000, service: 'Oil & filter' },
+    { id: 'a2', date: '2026-11-01', item: 'Water filter', service: 'Filter change' },
+  ],
 });
 
-test('unknown status falls back to No record', () => {
-  const d = parseSheet({ schedule: [{ Item: 'X', Service: 'Y', Status: '#REF!' }] });
-  assert.equal(d.schedule[0].status, 'No record');
+const store = D.parseStore(json);
+const d = D.compute(store, TODAY);
+
+test('parseStore tolerates hand edits and skips blank rows', () => {
+  assert.equal(store.items.length, 3);
+  assert.equal(store.items[0].reading, 201234);
+  assert.equal(store.items[0].year, '2003');
+  assert.equal(store.items[0].purchased, '2026-10-10');
+  assert.equal(store.items[1].meter, '');
+  assert.equal(store.items[2].meter, 'hours');
+  assert.equal(store.items[2].type, 'Equipment');
+  assert.ok(isVehicle(store.items[0]) && !isVehicle(store.items[1]));
+  assert.equal(itemTitle(store.items[0]), '2003 Honda Odyssey EX');
+  assert.equal(store.log[2].reading, null);
+  assert.equal(store.schedule[2].every, null);
+  assert.throws(() => D.parseStore('{ nope'), /valid JSON/);
+});
+
+test('serialize round-trips', () => {
+  assert.deepEqual(D.parseStore(D.serializeStore(store)), store);
+  assert.deepEqual(D.parseStore(D.serializeStore(D.emptyStore())), D.emptyStore());
+});
+
+test('compute works out last done, next due and status', () => {
+  const [coolant, oil, filter] = d.schedule;
+  assert.equal(coolant.status, 'No record');
+  assert.equal(oil.lastDone, '2026-05-01');
+  assert.equal(oil.lastReading, 196000);
+  assert.equal(oil.nextDate, '2026-11-01');
+  assert.equal(oil.nextReading, 201000);
+  assert.equal(oil.status, 'Overdue');
+  assert.equal(oil.part, '5W-20');
+  assert.equal(filter.nextDate, '2027-05-01');
+  assert.equal(filter.status, 'OK');
+});
+
+test('due soon by miles and by date', () => {
+  const s = D.parseStore(
+    JSON.stringify({
+      items: [{ name: 'Car', meter: 'miles', reading: 100600 }],
+      schedule: [
+        { item: 'Car', service: 'Oil', every: 5000, everyMonths: 12 },
+        { item: 'Car', service: 'Wipers', everyMonths: 12 },
+      ],
+      log: [
+        { id: '1', date: '2026-06-01', item: 'Car', service: 'Oil', reading: 96000 },
+        { id: '2', date: '2025-12-10', item: 'Car', service: 'Wipers' },
+      ],
+    }),
+  );
+  const [oil, wipers] = D.compute(s, TODAY).schedule;
+  assert.equal(oil.status, 'Due soon'); // 400 miles left of 5,000
+  assert.equal(wipers.status, 'Due soon'); // due Dec 10, 19 days away
+});
+
+test('addMonths clamps like EDATE', () => {
+  assert.equal(D.addMonths('2026-08-31', 6), '2027-02-28');
+  assert.equal(D.addMonths('2026-11-15', 2), '2027-01-15');
+});
+
+test('changes', () => {
+  let s = D.addEntries(
+    store,
+    [{ item: 'Odyssey', date: TODAY, reading: 202000, service: 'Oil & filter', cost: null, shop: '', notes: '' }],
+    `${TODAY}T10:00:00Z`,
+    () => 'new',
+  );
+  assert.equal(s.items[0].reading, 202000);
+  assert.equal(D.compute(s, TODAY).schedule[1].status, 'OK');
+  s = D.deleteEntry(s, 'new');
+  assert.equal(s.log.length, 3);
+  assert.throws(() => D.deleteEntry(s, 'zzz'));
+
+  s = D.saveItem(s, { ...s.items[0], name: 'Van' }, 'Odyssey');
+  assert.equal(s.schedule[0].item, 'Van');
+  assert.ok(s.log.filter((e) => e.item === 'Van').length === 2);
+  assert.throws(() => D.saveItem(s, { ...s.items[1], name: 'van' }), /already/);
+
+  s = D.saveSchedule(s, { item: 'Van', service: 'Oil change', every: 5000, everyMonths: 6, part: '' }, 'Oil & filter');
+  assert.equal(D.compute(s, TODAY).schedule.find((r) => r.service === 'Oil change')?.lastDone, '2026-05-01');
+  assert.throws(() => D.saveSchedule(s, { item: 'Van', service: 'X', every: null, everyMonths: null, part: '' }), /how often/);
+  s = D.deleteSchedule(s, 'Van', 'Coolant');
+  assert.equal(s.schedule.length, 2);
+  s = D.deleteItem(s, 'Van');
+  assert.equal(s.items.length, 2);
+  assert.equal(s.log.length, 3); // history stays
+});
+
+test('base64 handles UTF-8', () => {
+  const t = 'Claire\'s Hyundai · 2/32" — ✓ 🚗';
+  assert.equal(D.fromBase64(D.toBase64(t)), t);
+  assert.equal(D.toBase64('hello'), Buffer.from('hello').toString('base64'));
+  assert.equal(
+    D.fromBase64(
+      Buffer.from(t)
+        .toString('base64')
+        .replace(/(.{10})/g, '$1\n'),
+    ),
+    t,
+  );
 });
 
 test('formatting follows the meter', () => {
@@ -63,7 +155,6 @@ test('formatting follows the meter', () => {
   assert.equal(formatReading(105000, 'miles'), '105,000 mi');
   assert.equal(formatReading(250, 'hours'), '250 hr');
   assert.equal(formatReading(null, 'miles'), '—');
-  const d = parseSheet(raw);
   assert.equal(nextDue(d.schedule[1], 'miles'), 'Nov 1, 2026 or 201,000 mi');
   assert.equal(nextDue(d.schedule[2], ''), 'May 1, 2027');
   assert.equal(interval(d.schedule[1], 'miles'), 'every 5,000 mi or 6 months');
@@ -71,9 +162,14 @@ test('formatting follows the meter', () => {
 });
 
 test('sorting', () => {
-  const d = parseSheet(raw);
-  assert.deepEqual(byUrgency(d.schedule).map((s) => s.service), ['Oil & filter', 'Filter change', 'Coolant']);
-  assert.deepEqual(newestFirst(d.log).map((e) => e.id), ['a2', 'a1']);
+  assert.deepEqual(
+    byUrgency(d.schedule).map((s) => s.service),
+    ['Oil & filter', 'Filter change', 'Coolant'],
+  );
+  assert.deepEqual(
+    newestFirst(d.log).map((e) => e.id),
+    ['a2', 'a1', 'a0'],
+  );
 });
 
 test('input parsing', () => {
@@ -86,9 +182,7 @@ test('input parsing', () => {
   assert.ok(!isISODate('11/20/2026'));
 });
 
-test('summarize counts statuses and finds next and last', async () => {
-  const { summarize, statusLine } = await import('./format.ts');
-  const d = parseSheet(raw);
+test('summarize counts statuses and finds next and last', () => {
   const s = summarize(d.items[0], d);
   assert.equal(s.overdue, 1);
   assert.equal(s.noRecord, 1);

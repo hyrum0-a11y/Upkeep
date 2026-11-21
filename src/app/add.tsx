@@ -8,14 +8,14 @@ import { formatReading, isISODate, parseNumber, toISODate } from '../lib/format'
 const OTHER = 'Other…';
 
 export default function AddService() {
-  const params = useLocalSearchParams<{ item?: string }>();
+  const params = useLocalSearchParams<{ item?: string; service?: string; reading?: string }>();
   const { data } = useSheet();
   const items = data?.items ?? [];
   const [item, setItem] = useState(params.item ?? (items.length === 1 ? items[0].name : ''));
-  const [service, setService] = useState('');
+  const [service, setService] = useState(params.service ?? '');
   const [otherName, setOtherName] = useState('');
   const [date, setDate] = useState(toISODate(new Date()));
-  const [reading, setReadingText] = useState('');
+  const [reading, setReadingText] = useState(params.reading ?? '');
   const [cost, setCost] = useState('');
   const [shop, setShop] = useState('');
   const [notes, setNotes] = useState('');
@@ -79,7 +79,7 @@ export default function AddService() {
             ))}
           </Row>
           {service === OTHER && <Field label="What was done" value={otherName} onChangeText={setOtherName} placeholder="e.g. New battery" />}
-          {service === OTHER && <Text style={text.muted}>Only names that match the Schedule count toward due dates.</Text>}
+          {service === OTHER && <Text style={text.muted}>Only names that match the schedule count toward due dates.</Text>}
         </>
       ) : null}
 
@@ -108,7 +108,7 @@ export default function AddService() {
       </Row>
       <Field label="Notes" value={notes} onChangeText={setNotes} multiline placeholder="Parts, oil or filter type, anything to remember" />
 
-      <Button label={busy ? 'Saving…' : 'Save to sheet'} onPress={save} disabled={busy} style={{ marginTop: 8 }} />
+      <Button label={busy ? 'Saving…' : 'Save'} onPress={save} disabled={busy} style={{ marginTop: 8 }} />
     </ScrollView>
   );
 }
