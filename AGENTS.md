@@ -45,6 +45,8 @@ Docs: https://docs.expo.dev/eas/index.md
 - Upkeep: an Android app for the family's maintenance log (vehicles and equipment like the water filter). The data is `upkeep.json` in the private repo hyrum0-a11y/Upkeep-data, read and written through the GitHub contents API (`src/lib/api.ts`).
 - Items have a Meter (miles, hours, or blank). Blank-meter items are scheduled by months only.
 - The app does the due-date math (`compute` in `src/lib/data.ts`); the file stores how often (`schedule`), what was done (`log`) and dated meter readings (`readings`).
+- Theme: `colors` in `src/components/ui.tsx` is picked once at startup from the phone's light/dark setting (`isDark`); `accentFor(index)` gives each item its color.
+- Reminders: `src/lib/reminders.ts` (expo-notifications, channel `due`) reschedules from `reminderPlan` (`src/lib/remindersPlan.ts`) whenever data loads (`_layout.tsx`).
 - The repo name and a fine-grained GitHub token (Contents read/write on the data repo only) are entered in Settings and kept on the phone. Never commit them.
 - Updates: every merge to `main` builds an APK release; the app checks GitHub Releases (`src/lib/update.ts`) and offers Download & install. The repo must stay public for that check.
 - `package-lock.json` is committed; the workflows use `npm ci` with `cache: npm`. Commit lockfile changes along with any dependency change, or CI will fail.

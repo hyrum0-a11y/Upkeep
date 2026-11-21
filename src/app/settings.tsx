@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import { StyleSheet, Text } from 'react-native';
-import { Banner, Button, Field, FormScroll, text } from '../components/ui';
-import { loadSettings, markConfigured, saveSettings, testConnection } from '../lib/api';
+import { StyleSheet, Switch, Text, View } from 'react-native';
+import { Banner, Button, Field, FormScroll, colors, text } from '../components/ui';
+import { loadSettings, markConfigured, saveSettings, testConnection, useSheet } from '../lib/api';
+import { remindersEnabled, setRemindersEnabled } from '../lib/reminders';
 import { BUILD_NUMBER } from '../lib/update';
 
 export default function SettingsScreen() {
@@ -9,6 +10,23 @@ export default function SettingsScreen() {
   const [token, setToken] = useState('');
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; msg: string } | null>(null);
+  const { data } = useSheet();
+  const [reminders, setReminders] = useState(true);
+  const [reminderNote, setReminderNote] = useState('');
+
+  useEffect(() => {
+    remindersEnabled().then(setReminders);
+  }, []);
+
+  async function toggleReminders(on: boolean) {
+    setReminders(on);
+    const ok = await setRemindersEnabled(on, data);
+    if (on && !ok) {
+      setReminders(false);
+      await setRemindersEnabled(false, null);
+      setReminderNote('Notifications are blocked for Upkeep. Allow them in Android Settings › Apps › Upkeep, then turn this on again.');
+    } else setReminderNote('');
+  }
 
   useEffect(() => {
     loadSettings().then((s) => {
@@ -65,6 +83,18 @@ export default function SettingsScreen() {
         </Banner>
       )}
 
+      <Text style={text.section}>Reminders</Text>
+      <View style={styles.switchRow}>
+        <Text style={[text.body, { flex: 1 }]}>Notify me a week before and on the day a service is due</Text>
+        <Switch value={reminders} onValueChange={toggleReminders} trackColor={{ true: colors.primary }} />
+      </View>
+      <Text style={text.muted}>Works for date-based services. Mileage-based ones show on the home screen when they get close.</Text>
+      {reminderNote ? (
+        <Banner tone="warn">
+          <Text style={text.body}>{reminderNote}</Text>
+        </Banner>
+      ) : null}
+
       <Text style={text.section}>About</Text>
       <Text style={text.muted}>Upkeep · build {BUILD_NUMBER || 'dev'}</Text>
     </FormScroll>
@@ -72,5 +102,6 @@ export default function SettingsScreen() {
 }
 
 const styles = StyleSheet.create({
+  switchRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   wrap: { padding: 16, gap: 12, paddingBottom: 40 },
 });

@@ -17,7 +17,6 @@ import {
   parseNumber,
   perMonth,
   toISODate,
-  statusLine,
   summarize,
   type Meter,
   type Reading,
@@ -132,9 +131,6 @@ export default function ItemScreen() {
 
       <Card>
         <Text style={text.section}>Summary</Text>
-        <Text style={[text.body, { fontWeight: '600', color: sum.overdue ? colors.danger : sum.dueSoon ? colors.warn : colors.text }]}>
-          {statusLine(sum)}
-        </Text>
         {it.purchased ? <Text style={text.body}>Purchased {formatDate(it.purchased)}</Text> : null}
         {sum.next ? (
           <Text style={text.body}>
@@ -255,18 +251,12 @@ export default function ItemScreen() {
       <Text style={text.section}>Schedule</Text>
       {schedule.length === 0 && <Text style={text.muted}>No scheduled services yet. Add one below.</Text>}
       {sum.noRecord > 0 && (
-        <Banner tone="info">
-          <Text style={text.body}>
-            {sum.noRecord} {sum.noRecord === 1 ? 'service has' : 'services have'} no record yet, so {sum.noRecord === 1 ? 'it' : 'they'}{' '}
-            can't come due.
-          </Text>
-          <Button
-            label="Set starting points"
-            variant="outline"
-            onPress={() => router.push({ pathname: '/starting', params: { item: it.name } })}
-            style={{ marginTop: 6 }}
-          />
-        </Banner>
+        <Text
+          style={{ color: colors.primary, fontSize: 15 }}
+          onPress={() => router.push({ pathname: '/starting', params: { item: it.name } })}
+        >
+          Set starting points for services never logged ›
+        </Text>
       )}
       {editing ? (
         <ScheduleForm
@@ -376,23 +366,43 @@ export default function ItemScreen() {
 
       <Text style={text.section}>History</Text>
       {history.length === 0 && <Text style={text.muted}>Nothing logged yet.</Text>}
-      {history.map((e) => (
-        <Card
-          key={e.id || `${e.date}|${e.service}`}
-          onPress={e.id ? () => router.push({ pathname: '/add', params: { id: e.id } }) : undefined}
-        >
-          <Row style={{ justifyContent: 'space-between' }}>
-            <Text style={[text.body, { fontWeight: '600', flex: 1 }]}>{e.service}</Text>
-            <Text style={text.muted}>{formatDate(e.date)}</Text>
+      {byYear(history).map(([year, entries]) => (
+        <View key={year} style={{ gap: 8 }}>
+          <Row style={{ justifyContent: 'space-between', marginTop: 4 }}>
+            <Text style={text.h2}>{year}</Text>
+            <Text style={text.muted}>{formatCost(entries.reduce((t, e) => t + (e.cost ?? 0), 0))} spent</Text>
           </Row>
-          <Text style={text.muted}>
-            {[e.reading !== null && m && formatReading(e.reading, m), formatCost(e.cost), e.shop].filter(Boolean).join(' · ')}
-          </Text>
-          {e.notes ? <Text style={text.body}>{e.notes}</Text> : null}
-        </Card>
+          {entries.map((e) => (
+            <Card
+              key={e.id || `${e.date}|${e.service}`}
+              onPress={e.id ? () => router.push({ pathname: '/add', params: { id: e.id } }) : undefined}
+            >
+              <Row style={{ justifyContent: 'space-between' }}>
+                <Text style={[text.body, { fontWeight: '600', flex: 1 }]}>{e.service}</Text>
+                <Text style={text.muted}>{formatDate(e.date)}</Text>
+              </Row>
+              <Text style={text.muted}>
+                {[e.reading !== null && m && formatReading(e.reading, m), formatCost(e.cost), e.shop].filter(Boolean).join(' · ')}
+              </Text>
+              {e.notes ? <Text style={text.body}>{e.notes}</Text> : null}
+            </Card>
+          ))}
+        </View>
       ))}
     </FormScroll>
   );
+}
+
+/** Group entries (already newest first) by year. */
+function byYear<T extends { date: string }>(entries: T[]): [string, T[]][] {
+  const out: [string, T[]][] = [];
+  for (const e of entries) {
+    const y = e.date.slice(0, 4) || '—';
+    const last = out[out.length - 1];
+    if (last && last[0] === y) last[1].push(e);
+    else out.push([y, [e]]);
+  }
+  return out;
 }
 
 /** Fix one reading in place: new value and/or date. */

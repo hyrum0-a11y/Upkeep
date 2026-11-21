@@ -179,3 +179,55 @@ export function statusLine(s: ReturnType<typeof summarize>): string {
 export function itemTitle(it: Item): string {
   return [it.year, it.make, it.model].filter(Boolean).join(' ');
 }
+
+/** A simple icon for an item, guessed from its type and name. */
+export function itemIcon(it: Item): string {
+  const s = `${it.name} ${it.make} ${it.model}`.toLowerCase();
+  if (isVehicle(it)) {
+    if (/silverado|truck|pickup|f-?150|ram|tacoma|tundra|sierra/.test(s)) return '🛻';
+    if (/odyssey|van|sienna|caravan|pacifica/.test(s)) return '🚐';
+    if (/motorcycle|bike/.test(s)) return '🏍️';
+    return '🚗';
+  }
+  if (/water|filter|fridge|refrigerator/.test(s)) return '💧';
+  if (/furnace|hvac|heat|air/.test(s)) return '🌡️';
+  if (/mower|lawn|yard/.test(s)) return '🌱';
+  return '🔧';
+}
+
+export type Kind = 'Routine' | 'Repair';
+
+/** Routine when the entry matches a scheduled service for that item, otherwise a repair / one-off. */
+export function kindOf(e: ServiceEntry, data: SheetData): Kind {
+  return data.schedule.some((s) => s.item === e.item && s.service === e.service) ? 'Routine' : 'Repair';
+}
+
+/** Spending grouped by year (newest first), with per-item and routine/repair totals. */
+export function spendingByYear(data: SheetData) {
+  const years = new Map<
+    string,
+    { total: number; routine: number; repair: number; items: Map<string, { total: number; routine: number; repair: number }> }
+  >();
+  for (const e of data.log) {
+    if (!e.cost) continue;
+    const y = e.date.slice(0, 4) || '—';
+    const yr = years.get(y) ?? { total: 0, routine: 0, repair: 0, items: new Map() };
+    const it = yr.items.get(e.item) ?? { total: 0, routine: 0, repair: 0 };
+    const k = kindOf(e, data) === 'Routine' ? 'routine' : 'repair';
+    yr.total += e.cost;
+    yr[k] += e.cost;
+    it.total += e.cost;
+    it[k] += e.cost;
+    yr.items.set(e.item, it);
+    years.set(y, yr);
+  }
+  return [...years.entries()]
+    .sort((a, b) => b[0].localeCompare(a[0]))
+    .map(([year, v]) => ({
+      year,
+      total: v.total,
+      routine: v.routine,
+      repair: v.repair,
+      items: [...v.items.entries()].map(([item, t]) => ({ item, ...t })).sort((a, b) => b.total - a.total),
+    }));
+}
