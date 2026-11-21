@@ -1,0 +1,278 @@
+// The data file (upkeep.json in the private data repo) and everything worked out from it.
+// Plain TypeScript, no React Native imports, so it runs in unit tests.
+
+import type { Item, Meter, ScheduleItem, ServiceEntry, SheetData, Status } from './format';
+
+export const DATA_FILE = 'upkeep.json';
+
+/** A schedule row as stored: how often. Last done / next due / status are worked out by `compute`. */
+export type StoredSchedule = {
+  item: string;
+  service: string;
+  every: number | null; // miles or hours, matching the item's meter
+  everyMonths: number | null;
+  part: string;
+};
+
+export type StoredEntry = ServiceEntry & { entered: string };
+
+export type Store = {
+  version: 1;
+  items: Item[];
+  schedule: StoredSchedule[];
+  log: StoredEntry[];
+};
+
+export function emptyStore(): Store {
+  return { version: 1, items: [], schedule: [], log: [] };
+}
+
+// ---------- reading the file ----------
+
+const str = (v: unknown): string => (v === null || v === undefined ? '' : String(v).trim());
+const num = (v: unknown): number | null => {
+  if (v === '' || v === null || v === undefined) return null;
+  const n = Number(String(v).replace(/[$,]/g, ''));
+  return Number.isFinite(n) ? n : null;
+};
+const meter = (v: unknown): Meter => {
+  const s = str(v).toLowerCase();
+  if (s.startsWith('mi')) return 'miles';
+  if (s.startsWith('h')) return 'hours';
+  return '';
+};
+type Obj = Record<string, unknown>;
+const list = (v: unknown): Obj[] => (Array.isArray(v) ? (v.filter((x) => x && typeof x === 'object') as Obj[]) : []);
+
+/** Parse upkeep.json, tolerating hand edits (missing fields, numbers typed as text). */
+export function parseStore(json: string): Store {
+  let raw: Obj;
+  try {
+    raw = JSON.parse(json) as Obj;
+  } catch {
+    throw new Error(`${DATA_FILE} isn't valid JSON. If you edited it on GitHub, check for a missing comma or quote.`);
+  }
+  return {
+    version: 1,
+    items: list(raw.items)
+      .map((r) => ({
+        name: str(r.name),
+        type: str(r.type) || 'Equipment',
+        year: str(r.year),
+        make: str(r.make),
+        model: str(r.model),
+        meter: meter(r.meter),
+        reading: num(r.reading),
+        readingUpdated: str(r.readingUpdated),
+        purchased: str(r.purchased),
+        notes: str(r.notes),
+      }))
+      .filter((i) => i.name),
+    schedule: list(raw.schedule)
+      .map((r) => ({ item: str(r.item), service: str(r.service), every: num(r.every), everyMonths: num(r.everyMonths), part: str(r.part) }))
+      .filter((s) => s.item && s.service),
+    log: list(raw.log)
+      .map((r) => ({
+        id: str(r.id),
+        date: str(r.date),
+        item: str(r.item),
+        reading: num(r.reading),
+        service: str(r.service),
+        cost: num(r.cost),
+        shop: str(r.shop),
+        notes: str(r.notes),
+        entered: str(r.entered),
+      }))
+      .filter((e) => e.item && e.service),
+  };
+}
+
+/** Pretty JSON with one log entry per line, so GitHub diffs stay readable. */
+export function serializeStore(s: Store): string {
+  const block = (rows: unknown[]) => (rows.length ? `[\n    ${rows.map((r) => JSON.stringify(r)).join(',\n    ')}\n  ]` : '[]');
+  return `{\n  "version": 1,\n  "items": ${block(s.items)},\n  "schedule": ${block(s.schedule)},\n  "log": ${block(s.log)}\n}\n`;
+}
+
+// ---------- due math ----------
+
+/** "2026-05-31" + 6 months → "2026-11-30" (clamped to the month's last day, like a spreadsheet's EDATE). */
+export function addMonths(iso: string, months: number): string {
+  const [y, m, d] = iso.split('-').map(Number);
+  const total = y * 12 + (m - 1) + months;
+  const ny = Math.floor(total / 12);
+  const nm = total % 12;
+  const last = new Date(ny, nm + 1, 0).getDate();
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${ny}-${p(nm + 1)}-${p(Math.min(d, last))}`;
+}
+
+function daysBetween(fromIso: string, toIso: string): number {
+  const t = (s: string) => {
+    const [y, m, d] = s.split('-').map(Number);
+    return Date.UTC(y, m - 1, d);
+  };
+  return Math.round((t(toIso) - t(fromIso)) / 86_400_000);
+}
+
+/**
+ * Last done, next due and status for each schedule row.
+ * Due soon: within 10% of the mileage interval, or within min(30 days, 3 days per month of interval).
+ */
+export function compute(store: Store, today: string): SheetData {
+  const reading = new Map(store.items.map((i) => [i.name, i.reading]));
+  const schedule: ScheduleItem[] = store.schedule.map((s) => {
+    const done = store.log.filter((e) => e.item === s.item && e.service === s.service);
+    const lastDone = done.reduce((max, e) => (e.date > max ? e.date : max), '');
+    const readings = done.map((e) => e.reading).filter((r): r is number => r !== null);
+    const lastReading = readings.length ? Math.max(...readings) : null;
+    const nextDate = lastDone && s.everyMonths ? addMonths(lastDone, s.everyMonths) : '';
+    const nextReading = lastReading !== null && s.every ? lastReading + s.every : null;
+    const current = reading.get(s.item) ?? null;
+    let status: Status = 'OK';
+    if (!lastDone) status = 'No record';
+    else if ((nextDate && nextDate <= today) || (nextReading !== null && current !== null && current >= nextReading)) status = 'Overdue';
+    else if (
+      (nextDate && daysBetween(today, nextDate) <= Math.min(30, (s.everyMonths ?? 0) * 3)) ||
+      (nextReading !== null && current !== null && s.every && nextReading - current <= s.every * 0.1)
+    )
+      status = 'Due soon';
+    return { ...s, lastDone, lastReading, nextDate, nextReading, status };
+  });
+  return { items: store.items, log: store.log, schedule };
+}
+
+// ---------- changes (each returns a new Store) ----------
+
+export type NewEntry = Omit<ServiceEntry, 'id'>;
+
+export function newId(): string {
+  return Math.random().toString(36).slice(2, 10);
+}
+
+/** Add service entries. Moves the item's reading forward when an entry's reading is higher. */
+export function addEntries(s: Store, entries: NewEntry[], now: string, id: () => string = newId): Store {
+  let items = s.items;
+  for (const e of entries) {
+    if (!e.item || !e.service) throw new Error('Item and service are required.');
+    if (e.reading !== null)
+      items = items.map((i) =>
+        i.name === e.item && (i.reading === null || e.reading! > i.reading)
+          ? { ...i, reading: e.reading, readingUpdated: now.slice(0, 10) }
+          : i,
+      );
+  }
+  return { ...s, items, log: [...s.log, ...entries.map((e) => ({ ...e, id: id(), entered: now }))] };
+}
+
+export function deleteEntry(s: Store, id: string): Store {
+  if (!s.log.some((e) => e.id === id)) throw new Error('Entry not found. It may already be deleted.');
+  return { ...s, log: s.log.filter((e) => e.id !== id) };
+}
+
+export function setReading(s: Store, item: string, reading: number, today: string): Store {
+  if (!s.items.some((i) => i.name === item)) throw new Error(`Item not found: ${item}`);
+  return { ...s, items: s.items.map((i) => (i.name === item ? { ...i, reading, readingUpdated: today } : i)) };
+}
+
+/** Add or update an item. Renaming also renames it in the schedule and log. */
+export function saveItem(s: Store, item: Item, oldName?: string): Store {
+  const name = item.name.trim();
+  if (!name) throw new Error('Give it a name.');
+  const clash = s.items.some((i) => i.name.toLowerCase() === name.toLowerCase() && i.name !== oldName);
+  if (clash) throw new Error(`There's already an item called ${name}.`);
+  const next = { ...item, name };
+  if (!oldName) return { ...s, items: [...s.items, next] };
+  if (!s.items.some((i) => i.name === oldName)) throw new Error(`Item not found: ${oldName}`);
+  const rename = <T extends { item: string }>(r: T): T => (r.item === oldName ? { ...r, item: name } : r);
+  return {
+    ...s,
+    items: s.items.map((i) => (i.name === oldName ? next : i)),
+    schedule: s.schedule.map(rename),
+    log: s.log.map(rename),
+  };
+}
+
+/** Remove an item and its schedule. Its log entries stay, so history isn't lost. */
+export function deleteItem(s: Store, name: string): Store {
+  return { ...s, items: s.items.filter((i) => i.name !== name), schedule: s.schedule.filter((r) => r.item !== name) };
+}
+
+/** Add or update a schedule row. `oldService` is its current name when editing. */
+export function saveSchedule(s: Store, row: StoredSchedule, oldService?: string): Store {
+  const service = row.service.trim();
+  if (!service) throw new Error('Give the service a name.');
+  if (row.every === null && row.everyMonths === null) throw new Error('Add how often: miles/hours, months, or both.');
+  const clash = s.schedule.some(
+    (r) => r.item === row.item && r.service.toLowerCase() === service.toLowerCase() && r.service !== oldService,
+  );
+  if (clash) throw new Error(`${row.item} already has ${service}.`);
+  const next = { ...row, service };
+  if (!oldService) return { ...s, schedule: [...s.schedule, next] };
+  return {
+    ...s,
+    schedule: s.schedule.map((r) => (r.item === row.item && r.service === oldService ? next : r)),
+    // Keep past entries counting toward the renamed service.
+    log: s.log.map((e) => (e.item === row.item && e.service === oldService ? { ...e, service } : e)),
+  };
+}
+
+export function deleteSchedule(s: Store, item: string, service: string): Store {
+  return { ...s, schedule: s.schedule.filter((r) => !(r.item === item && r.service === service)) };
+}
+
+// ---------- base64 for the GitHub contents API (UTF-8 safe, no globals needed) ----------
+
+const B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+
+function utf8Encode(s: string): number[] {
+  const out: number[] = [];
+  for (const ch of s) {
+    const c = ch.codePointAt(0)!;
+    if (c < 0x80) out.push(c);
+    else if (c < 0x800) out.push(0xc0 | (c >> 6), 0x80 | (c & 63));
+    else if (c < 0x10000) out.push(0xe0 | (c >> 12), 0x80 | ((c >> 6) & 63), 0x80 | (c & 63));
+    else out.push(0xf0 | (c >> 18), 0x80 | ((c >> 12) & 63), 0x80 | ((c >> 6) & 63), 0x80 | (c & 63));
+  }
+  return out;
+}
+
+function utf8Decode(b: number[]): string {
+  let s = '';
+  for (let i = 0; i < b.length; ) {
+    const c = b[i++];
+    let cp: number;
+    if (c < 0x80) cp = c;
+    else if (c < 0xe0) cp = ((c & 31) << 6) | (b[i++] & 63);
+    else if (c < 0xf0) cp = ((c & 15) << 12) | ((b[i++] & 63) << 6) | (b[i++] & 63);
+    else cp = ((c & 7) << 18) | ((b[i++] & 63) << 12) | ((b[i++] & 63) << 6) | (b[i++] & 63);
+    s += String.fromCodePoint(cp);
+  }
+  return s;
+}
+
+export function toBase64(s: string): string {
+  const b = utf8Encode(s);
+  let out = '';
+  for (let i = 0; i < b.length; i += 3) {
+    const n = (b[i] << 16) | ((b[i + 1] ?? 0) << 8) | (b[i + 2] ?? 0);
+    out +=
+      B64[(n >> 18) & 63] + B64[(n >> 12) & 63] + (i + 1 < b.length ? B64[(n >> 6) & 63] : '=') + (i + 2 < b.length ? B64[n & 63] : '=');
+  }
+  return out;
+}
+
+export function fromBase64(s: string): string {
+  const clean = s.replace(/[^A-Za-z0-9+/]/g, '');
+  const b: number[] = [];
+  for (let i = 0; i < clean.length; i += 4) {
+    const n =
+      (B64.indexOf(clean[i]) << 18) |
+      (B64.indexOf(clean[i + 1]) << 12) |
+      ((B64.indexOf(clean[i + 2]) & 63) << 6) |
+      (B64.indexOf(clean[i + 3]) & 63);
+    b.push((n >> 16) & 255);
+    if (i + 2 < clean.length) b.push((n >> 8) & 255);
+    if (i + 3 < clean.length) b.push(n & 255);
+  }
+  return utf8Decode(b);
+}

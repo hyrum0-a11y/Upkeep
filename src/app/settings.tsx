@@ -5,34 +5,34 @@ import { loadSettings, markConfigured, saveSettings, testConnection } from '../l
 import { BUILD_NUMBER } from '../lib/update';
 
 export default function SettingsScreen() {
-  const [url, setUrl] = useState('');
-  const [key, setKey] = useState('');
+  const [repo, setRepo] = useState('hyrum0-a11y/Upkeep-data');
+  const [token, setToken] = useState('');
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; msg: string } | null>(null);
 
   useEffect(() => {
     loadSettings().then((s) => {
       if (s) {
-        setUrl(s.url);
-        setKey(s.key);
+        setRepo(s.repo);
+        setToken(s.token);
       }
     });
   }, []);
 
   async function testAndSave() {
-    if (!/^https:\/\/script\.google\.com\/.+\/exec$/.test(url.trim())) {
-      setResult({ ok: false, msg: 'The URL should start with https://script.google.com/ and end with /exec.' });
+    if (!/^[\w.-]+\/[\w.-]+$/.test(repo.trim().replace(/^https?:\/\/github\.com\//, '').replace(/\/$/, ''))) {
+      setResult({ ok: false, msg: 'The repo should look like owner/name, e.g. hyrum0-a11y/Upkeep-data.' });
       return;
     }
-    if (!key.trim()) {
-      setResult({ ok: false, msg: 'Paste the key printed by setup.' });
+    if (!token.trim()) {
+      setResult({ ok: false, msg: 'Paste the GitHub token.' });
       return;
     }
     setBusy(true);
     setResult(null);
     try {
-      const data = await testConnection({ url, key });
-      await saveSettings({ url, key });
+      const data = await testConnection({ repo, token });
+      await saveSettings({ repo, token });
       markConfigured();
       setResult({ ok: true, msg: `Connected. Found ${data.items.length} items and ${data.log.length} log entries.` });
     } catch (e) {
@@ -44,10 +44,13 @@ export default function SettingsScreen() {
 
   return (
     <ScrollView contentContainerStyle={styles.wrap} keyboardShouldPersistTaps="handled">
-      <Text style={text.section}>Google Sheet connection</Text>
-      <Text style={text.muted}>From the sheet's Apps Script: the Web app URL (Deploy) and the key printed by setup. Stored only on this phone.</Text>
-      <Field label="Web app URL" value={url} onChangeText={setUrl} placeholder="https://script.google.com/macros/s/…/exec" keyboardType="url" />
-      <Field label="Key" value={key} onChangeText={setKey} secure />
+      <Text style={text.section}>Data on GitHub</Text>
+      <Text style={text.muted}>
+        The private repo that holds upkeep.json, and a fine-grained token for just that repo (Contents: Read and write). Stored only on this
+        phone. See the README for how to make the token.
+      </Text>
+      <Field label="Repo" value={repo} onChangeText={setRepo} placeholder="owner/name" keyboardType="url" />
+      <Field label="Token" value={token} onChangeText={setToken} placeholder="github_pat_…" secure />
       <Button label={busy ? 'Testing…' : 'Test & save'} onPress={testAndSave} disabled={busy} />
       {result && (
         <Banner tone={result.ok ? 'good' : 'warn'}>

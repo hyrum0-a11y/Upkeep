@@ -1,4 +1,4 @@
-// Plain data helpers (no React Native imports, so they run in unit tests).
+// Types and display helpers (no React Native imports, so they run in unit tests).
 
 export type Status = 'Overdue' | 'Due soon' | 'OK' | 'No record';
 /** What the item's reading counts: odometer miles, engine hours, or nothing (e.g. a water filter). */
@@ -14,6 +14,7 @@ export type Item = {
   reading: number | null;
   readingUpdated: string; // yyyy-MM-dd or ''
   notes: string;
+  purchased: string; // yyyy-MM-dd or ''
 };
 
 export type ServiceEntry = {
@@ -27,11 +28,13 @@ export type ServiceEntry = {
   notes: string;
 };
 
+/** A schedule row with its worked-out last done / next due / status (see compute in data.ts). */
 export type ScheduleItem = {
   item: string;
   service: string;
   every: number | null; // miles or hours, matching the item's meter
   everyMonths: number | null;
+  part: string; // what to buy: oil type, filter part number…
   lastDone: string;
   lastReading: number | null;
   nextDate: string;
@@ -43,73 +46,7 @@ export type SheetData = {
   items: Item[];
   log: ServiceEntry[];
   schedule: ScheduleItem[];
-  sheetUrl: string;
 };
-
-type Row = Record<string, unknown>;
-
-const str = (v: unknown): string => (v === null || v === undefined ? '' : String(v).trim());
-const num = (v: unknown): number | null => {
-  if (v === '' || v === null || v === undefined) return null;
-  const n = Number(String(v).replace(/[$,]/g, ''));
-  return Number.isFinite(n) ? n : null;
-};
-const STATUSES: Status[] = ['Overdue', 'Due soon', 'OK', 'No record'];
-const status = (v: unknown): Status => {
-  const s = str(v);
-  return (STATUSES as string[]).includes(s) ? (s as Status) : 'No record';
-};
-const meter = (v: unknown): Meter => {
-  const s = str(v).toLowerCase();
-  if (s.startsWith('mi')) return 'miles';
-  if (s.startsWith('h')) return 'hours';
-  return '';
-};
-
-/** Turn the rows the Apps Script returns (keyed by column header) into typed data. */
-export function parseSheet(raw: { items?: Row[]; log?: Row[]; schedule?: Row[]; sheetUrl?: string }): SheetData {
-  return {
-    items: (raw.items ?? [])
-      .map((r) => ({
-        name: str(r['Item']),
-        type: str(r['Type']) || 'Equipment',
-        year: str(r['Year']),
-        make: str(r['Make']),
-        model: str(r['Model']),
-        meter: meter(r['Meter']),
-        reading: num(r['Current reading']),
-        readingUpdated: str(r['Reading updated']),
-        notes: str(r['Notes']),
-      }))
-      .filter((v) => v.name),
-    log: (raw.log ?? [])
-      .map((r) => ({
-        id: str(r['ID']),
-        date: str(r['Date']),
-        item: str(r['Item']),
-        reading: num(r['Reading']),
-        service: str(r['Service']),
-        cost: num(r['Cost']),
-        shop: str(r['Shop / who']),
-        notes: str(r['Notes']),
-      }))
-      .filter((e) => e.item && e.service),
-    schedule: (raw.schedule ?? [])
-      .map((r) => ({
-        item: str(r['Item']),
-        service: str(r['Service']),
-        every: num(r['Every (mi/hr)']),
-        everyMonths: num(r['Every (months)']),
-        lastDone: str(r['Last done']),
-        lastReading: num(r['Last reading']),
-        nextDate: str(r['Next due date']),
-        nextReading: num(r['Next due reading']),
-        status: status(r['Status']),
-      }))
-      .filter((s) => s.item && s.service),
-    sheetUrl: str(raw.sheetUrl),
-  };
-}
 
 export const isVehicle = (it: Item) => it.type.toLowerCase() === 'vehicle';
 
@@ -189,6 +126,30 @@ export function byUrgency(items: ScheduleItem[]): ScheduleItem[] {
 /** Newest first (by date, then by reading). */
 export function newestFirst(log: ServiceEntry[]): ServiceEntry[] {
   return [...log].sort((a, b) => b.date.localeCompare(a.date) || (b.reading ?? 0) - (a.reading ?? 0));
+}
+
+/** Counts and highlights for an item's summary. */
+export function summarize(it: Item, data: SheetData) {
+  const schedule = data.schedule.filter((s) => s.item === it.name);
+  const log = newestFirst(data.log.filter((e) => e.item === it.name));
+  const count = (st: Status) => schedule.filter((s) => s.status === st).length;
+  const upcoming = byUrgency(schedule.filter((s) => s.status !== 'No record' && (s.nextDate || s.nextReading !== null)));
+  return {
+    overdue: count('Overdue'),
+    dueSoon: count('Due soon'),
+    ok: count('OK'),
+    noRecord: count('No record'),
+    next: upcoming[0] ?? null,
+    last: log[0] ?? null,
+    spent: log.reduce((sum, e) => sum + (e.cost ?? 0), 0),
+  };
+}
+
+/** One line for a list: "2 overdue · 1 due soon", "All up to date", or "No records yet". */
+export function statusLine(s: ReturnType<typeof summarize>): string {
+  if (s.overdue || s.dueSoon) return [s.overdue && `${s.overdue} overdue`, s.dueSoon && `${s.dueSoon} due soon`].filter(Boolean).join(' · ');
+  if (s.ok) return s.noRecord ? `Up to date · ${s.noRecord} with no record` : 'All up to date';
+  return s.noRecord ? 'No records yet' : 'Nothing scheduled';
 }
 
 /** "2003 Honda Odyssey EX". */
