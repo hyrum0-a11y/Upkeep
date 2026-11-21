@@ -1,22 +1,10 @@
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Linking, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { Linking, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Banner, Button, Card, Field, FormScroll, Row, StatusPill, colors, text } from '../components/ui';
-import { refresh, setReading, useSheet } from '../lib/api';
-import {
-  byUrgency,
-  formatCost,
-  formatDate,
-  formatReading,
-  isVehicle,
-  itemTitle,
-  nextDue,
-  parseNumber,
-  summarize,
-  type Item,
-  type SheetData,
-} from '../lib/format';
+import { Banner, Button, Card, Row, StatusPill, colors, text } from '../components/ui';
+import { refresh, useSheet } from '../lib/api';
+import { byUrgency, formatCost, isVehicle, nextDue, summarize } from '../lib/format';
 import { checkForUpdate, installUpdate, type Update } from '../lib/update';
 
 export default function Home() {
@@ -34,9 +22,10 @@ export default function Home() {
   const vehicles = data ? data.items.filter(isVehicle) : [];
   const equipment = data ? data.items.filter((i) => !isVehicle(i)) : [];
   const open = (name: string) => router.push({ pathname: '/item', params: { name } });
+  const spent6mo = data ? data.items.reduce((sum, it) => sum + summarize(it, data).spent6mo, 0) : 0;
 
   return (
-    <FormScroll
+    <ScrollView
       contentContainerStyle={[styles.wrap, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 24 }]}
       refreshControl={<RefreshControl refreshing={loading} onRefresh={refresh} />}
     >
@@ -83,15 +72,22 @@ export default function Home() {
 
       {data && (
         <>
-          {vehicles.length > 0 && <Text style={text.section}>Vehicles</Text>}
-          {vehicles.map((it) => (
-            <ItemRow key={it.name} it={it} data={data} onPress={() => open(it.name)} />
-          ))}
-
-          {equipment.length > 0 && <Text style={text.section}>Equipment</Text>}
-          {equipment.map((it) => (
-            <ItemRow key={it.name} it={it} data={data} onPress={() => open(it.name)} />
-          ))}
+          <View style={styles.grid}>
+            <Tile
+              icon="🚗"
+              title="Vehicles"
+              detail={`${vehicles.length} ${vehicles.length === 1 ? 'vehicle' : 'vehicles'}`}
+              onPress={() => router.push({ pathname: '/list', params: { type: 'Vehicle' } })}
+            />
+            <Tile
+              icon="🔧"
+              title="Equipment"
+              detail={`${equipment.length} ${equipment.length === 1 ? 'item' : 'items'}`}
+              onPress={() => router.push({ pathname: '/list', params: { type: 'Equipment' } })}
+            />
+            <Tile icon="💵" title="Spending" detail={`${formatCost(spent6mo)} last 6 months`} onPress={() => router.push('/spending')} />
+            <Tile icon="📈" title="Usage" detail="Mileage history" onPress={() => router.push('/usage')} />
+          </View>
 
           <Text style={text.section}>Overdue & due soon</Text>
           {attention.length === 0 ? (
@@ -121,98 +117,34 @@ export default function Home() {
       )}
 
       {!data && configured && loading && <Text style={text.muted}>Loading…</Text>}
-    </FormScroll>
+    </ScrollView>
   );
 }
 
-/** One compact, tappable row per vehicle or piece of equipment, with a quick mileage update. */
-function ItemRow({ it, data, onPress }: { it: Item; data: SheetData; onPress: () => void }) {
-  const [editing, setEditing] = useState(false);
-  const [value, setValue] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-  const sum = summarize(it, data);
-  const title = itemTitle(it);
-  const miles = it.meter && it.reading !== null ? formatReading(it.reading, it.meter) : '';
-
-  async function save() {
-    const n = parseNumber(value);
-    if (n === null || Number.isNaN(n) || n < 0) return setErr('Type the reading as a number.');
-    setBusy(true);
-    setErr(null);
-    try {
-      await setReading(it.name, n);
-      setEditing(false);
-      setValue('');
-    } catch (e) {
-      setErr((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
-
+/** A big square button on the home screen. */
+function Tile({ icon, title, detail, onPress }: { icon: string; title: string; detail: string; onPress: () => void }) {
   return (
-    <Card onPress={onPress}>
-      <Row style={{ justifyContent: 'space-between' }}>
-        <Text style={[text.h2, { flex: 1 }]}>{it.name}</Text>
-        {it.meter && !editing ? (
-          <Pressable
-            onPress={() => setEditing(true)}
-            hitSlop={10}
-            accessibilityRole="button"
-            accessibilityLabel={`Update ${it.name} reading`}
-          >
-            <Text style={{ color: colors.primary, fontSize: 15 }}>{it.meter === 'hours' ? 'Update hours' : 'Update miles'}</Text>
-          </Pressable>
-        ) : (
-          <Text style={{ color: colors.muted, fontSize: 22 }}>›</Text>
-        )}
-      </Row>
-      {title || miles ? (
-        <Text style={text.muted}>
-          {title}
-          {title && miles ? ' · ' : ''}
-          {miles ? (
-            // Tap the mileage to fix it.
-            <Text style={{ color: colors.primary }} onPress={() => setEditing(true)}>
-              {miles}
-            </Text>
-          ) : null}
-        </Text>
-      ) : null}
-      {sum.last ? (
-        <Text style={text.body}>
-          Last: {sum.last.service}, {formatDate(sum.last.date)}
-          {sum.last.cost !== null ? ` · ${formatCost(sum.last.cost)}` : ''}
-        </Text>
-      ) : (
-        <Text style={text.muted}>No record</Text>
-      )}
-      {sum.spent6mo > 0 ? <Text style={text.muted}>Spent in the last 6 months: {formatCost(sum.spent6mo)}</Text> : null}
-      {editing && (
-        <>
-          <Row style={{ marginTop: 6 }}>
-            <View style={{ flex: 1 }}>
-              <Field
-                label={it.meter === 'hours' ? 'Hour meter now' : 'Odometer now'}
-                value={value}
-                onChangeText={setValue}
-                placeholder={it.reading !== null ? String(it.reading) : ''}
-                keyboardType="number-pad"
-              />
-            </View>
-            <Button label={busy ? '…' : 'Save'} onPress={save} disabled={busy || !value.trim()} style={{ marginTop: 26 }} />
-          </Row>
-          <Text style={{ color: colors.muted, fontSize: 14 }} onPress={() => setEditing(false)}>
-            Cancel
-          </Text>
-          {err ? <Text style={{ color: colors.danger, fontSize: 14 }}>{err}</Text> : null}
-        </>
-      )}
-    </Card>
+    <Pressable onPress={onPress} style={({ pressed }) => [styles.tile, pressed && { opacity: 0.8 }]} accessibilityRole="button">
+      <Text style={{ fontSize: 30 }}>{icon}</Text>
+      <Text style={text.h2}>{title}</Text>
+      <Text style={text.muted} numberOfLines={1}>
+        {detail}
+      </Text>
+    </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   wrap: { padding: 16, gap: 12 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  tile: {
+    flexBasis: '47%',
+    flexGrow: 1,
+    backgroundColor: colors.card,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 16,
+    gap: 4,
+  },
 });

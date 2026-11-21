@@ -1,5 +1,6 @@
 import { useHeaderHeight } from 'expo-router/react-navigation';
 import {
+  Appearance,
   KeyboardAvoidingView,
   Pressable,
   ScrollView,
@@ -14,7 +15,7 @@ import {
 import type { ReactNode } from 'react';
 import type { Status } from '../lib/format';
 
-export const colors = {
+const light = {
   bg: '#F6F4EF',
   card: '#FFFFFF',
   text: '#1C1B1A',
@@ -26,6 +27,27 @@ export const colors = {
   warn: '#D68910',
   good: '#1E8449',
 };
+
+const dark: typeof light = {
+  bg: '#121212',
+  card: '#1E1E1E',
+  text: '#ECEAE6',
+  muted: '#A19D96',
+  border: '#33312E',
+  primary: '#7FA8E0',
+  primaryText: '#0E1A2B',
+  danger: '#F1817A',
+  warn: '#F2B854',
+  good: '#6CC58D',
+};
+
+/** Follows the phone's light/dark setting (picked when the app starts). */
+export const isDark = Appearance.getColorScheme() === 'dark';
+export const colors = isDark ? dark : light;
+
+/** One accent color per item (by its position), used for the stripe and icon background. */
+const ACCENTS = ['#2E86DE', '#E67E22', '#27AE60', '#8E44AD', '#16A085', '#C0392B', '#D4AC0D', '#7F8C8D'];
+export const accentFor = (index: number) => ACCENTS[((index % ACCENTS.length) + ACCENTS.length) % ACCENTS.length];
 
 export const statusColor: Record<Status, string> = {
   Overdue: colors.danger,

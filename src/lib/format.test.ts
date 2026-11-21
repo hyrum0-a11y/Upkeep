@@ -8,13 +8,17 @@ import {
   interval,
   isISODate,
   isVehicle,
+  itemIcon,
   itemTitle,
+  kindOf,
   newestFirst,
   nextDue,
   parseNumber,
+  spendingByYear,
   statusLine,
   summarize,
 } from './format.ts';
+import { reminderPlan } from './remindersPlan.ts';
 
 const TODAY = '2026-11-21';
 
@@ -254,4 +258,40 @@ test('spending: total and last 6 months; VIN parses', () => {
   assert.equal(s.spent6mo, 0); // May 1 is more than 6 months before Nov 21
   assert.equal(summarize(d.items[0], d, '2026-10-01').spent6mo, 45.5);
   assert.equal(D.parseStore(JSON.stringify({ items: [{ name: 'Car', vin: ' 1HGCM82633A004352 ' }] })).items[0].vin, '1HGCM82633A004352');
+});
+
+test('spending by year splits routine and repairs', () => {
+  const s = D.compute(
+    D.addEntries(
+      store,
+      [
+        { item: 'Odyssey', date: '2026-08-01', reading: null, service: 'Engine trouble', cost: 300, shop: 'Shop', notes: '' },
+        { item: 'Water filter', date: '2025-06-01', reading: null, service: 'Filter change', cost: 20, shop: '', notes: '' },
+      ],
+      `${TODAY}T10:00:00Z`,
+      () => Math.random().toString(36).slice(2, 10),
+    ),
+    TODAY,
+  );
+  assert.equal(kindOf(s.log.find((e) => e.service === 'Engine trouble')!, s), 'Repair');
+  assert.equal(kindOf(s.log.find((e) => e.id === 'a1')!, s), 'Routine');
+  const years = spendingByYear(s);
+  assert.deepEqual(
+    years.map((y) => [y.year, y.total, y.routine, y.repair]),
+    [
+      ['2026', 345.5, 45.5, 300],
+      ['2025', 20, 20, 0],
+    ],
+  );
+  assert.equal(years[0].items[0].item, 'Odyssey');
+});
+
+test('icons and reminders', () => {
+  assert.equal(itemIcon({ ...store.items[0], model: 'Silverado', make: 'Chevrolet' }), '🛻');
+  assert.equal(itemIcon(store.items[1]), '💧');
+  const plan = reminderPlan(d, new Date(2026, 10, 21, 12));
+  // Water filter is due 2027-05-01: a week before and on the day, 9 AM. Odyssey oil (due Nov 1) is past.
+  assert.equal(plan.length, 2);
+  assert.equal(plan[0].at, new Date(2027, 3, 24, 9).getTime());
+  assert.match(plan[1].title, /Water filter: Filter change due today/);
 });
