@@ -1,17 +1,18 @@
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Linking, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Linking, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Banner, Button, Card, Field, Row, StatusPill, colors, text } from '../components/ui';
+import { Banner, Button, Card, Field, FormScroll, Row, StatusPill, colors, text } from '../components/ui';
 import { refresh, setReading, useSheet } from '../lib/api';
 import {
   byUrgency,
+  formatCost,
+  formatDate,
   formatReading,
   isVehicle,
   itemTitle,
   nextDue,
   parseNumber,
-  statusLine,
   summarize,
   type Item,
   type SheetData,
@@ -35,7 +36,7 @@ export default function Home() {
   const open = (name: string) => router.push({ pathname: '/item', params: { name } });
 
   return (
-    <ScrollView
+    <FormScroll
       contentContainerStyle={[styles.wrap, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 24 }]}
       refreshControl={<RefreshControl refreshing={loading} onRefresh={refresh} />}
     >
@@ -82,7 +83,6 @@ export default function Home() {
 
       {data && (
         <>
-
           {vehicles.length > 0 && <Text style={text.section}>Vehicles</Text>}
           {vehicles.map((it) => (
             <ItemRow key={it.name} it={it} data={data} onPress={() => open(it.name)} />
@@ -121,7 +121,7 @@ export default function Home() {
       )}
 
       {!data && configured && loading && <Text style={text.muted}>Loading…</Text>}
-    </ScrollView>
+    </FormScroll>
   );
 }
 
@@ -132,7 +132,6 @@ function ItemRow({ it, data, onPress }: { it: Item; data: SheetData; onPress: ()
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const sum = summarize(it, data);
-  const color = sum.overdue ? colors.danger : sum.dueSoon ? colors.warn : sum.ok ? colors.good : colors.muted;
   const title = itemTitle(it);
   const miles = it.meter && it.reading !== null ? formatReading(it.reading, it.meter) : '';
 
@@ -181,7 +180,15 @@ function ItemRow({ it, data, onPress }: { it: Item; data: SheetData; onPress: ()
           ) : null}
         </Text>
       ) : null}
-      <Text style={[text.body, { color, fontWeight: '600' }]}>{statusLine(sum)}</Text>
+      {sum.last ? (
+        <Text style={text.body}>
+          Last: {sum.last.service}, {formatDate(sum.last.date)}
+          {sum.last.cost !== null ? ` · ${formatCost(sum.last.cost)}` : ''}
+        </Text>
+      ) : (
+        <Text style={text.muted}>No record</Text>
+      )}
+      {sum.spent6mo > 0 ? <Text style={text.muted}>Spent in the last 6 months: {formatCost(sum.spent6mo)}</Text> : null}
       {editing && (
         <>
           <Row style={{ marginTop: 6 }}>

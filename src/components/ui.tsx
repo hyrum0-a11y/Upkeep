@@ -1,4 +1,16 @@
-import { Pressable, StyleSheet, Text, TextInput, View, type KeyboardTypeOptions, type ViewStyle } from 'react-native';
+import { useHeaderHeight } from 'expo-router/react-navigation';
+import {
+  KeyboardAvoidingView,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+  type KeyboardTypeOptions,
+  type ScrollViewProps,
+  type ViewStyle,
+} from 'react-native';
 import type { ReactNode } from 'react';
 import type { Status } from '../lib/format';
 
@@ -100,6 +112,7 @@ export function Field({
   keyboardType,
   multiline,
   secure,
+  caps,
 }: {
   label: string;
   value: string;
@@ -108,6 +121,7 @@ export function Field({
   keyboardType?: KeyboardTypeOptions;
   multiline?: boolean;
   secure?: boolean;
+  caps?: boolean; // all capitals, no autocorrect (VINs, part numbers)
 }) {
   return (
     <View style={{ gap: 6 }}>
@@ -120,8 +134,8 @@ export function Field({
         keyboardType={keyboardType}
         multiline={multiline}
         secureTextEntry={secure}
-        autoCapitalize={secure || keyboardType === 'url' ? 'none' : 'sentences'}
-        autoCorrect={!secure && keyboardType !== 'url'}
+        autoCapitalize={caps ? 'characters' : secure || keyboardType === 'url' ? 'none' : 'sentences'}
+        autoCorrect={!caps && !secure && keyboardType !== 'url'}
         style={[styles.input, multiline && { minHeight: 80, textAlignVertical: 'top' }]}
       />
     </View>
@@ -190,3 +204,18 @@ const styles = StyleSheet.create({
     gap: 8,
   },
 });
+
+/**
+ * A scrolling screen with text fields: the screen shrinks above the keyboard (Android apps are
+ * edge-to-edge, so the window doesn't resize by itself) and the field being typed in stays visible.
+ */
+export function FormScroll({ children, ...props }: ScrollViewProps & { children: ReactNode }) {
+  const headerHeight = useHeaderHeight();
+  return (
+    <KeyboardAvoidingView behavior="padding" keyboardVerticalOffset={headerHeight} style={{ flex: 1 }}>
+      <ScrollView keyboardShouldPersistTaps="handled" {...props}>
+        {children}
+      </ScrollView>
+    </KeyboardAvoidingView>
+  );
+}

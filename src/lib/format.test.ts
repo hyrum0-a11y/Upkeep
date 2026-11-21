@@ -247,3 +247,11 @@ test('readings: current reading shows in history and can be fixed in place', () 
   s = D.parseStore(D.serializeStore(s));
   assert.equal(s.readings.filter((r) => r.item === 'Odyssey').length, 1);
 });
+
+test('spending: total and last 6 months; VIN parses', () => {
+  const s = summarize(d.items[0], d, TODAY); // entries: 2026-05-01 $45.50, 2025-11-01 no cost
+  assert.equal(s.spent, 45.5);
+  assert.equal(s.spent6mo, 0); // May 1 is more than 6 months before Nov 21
+  assert.equal(summarize(d.items[0], d, '2026-10-01').spent6mo, 45.5);
+  assert.equal(D.parseStore(JSON.stringify({ items: [{ name: 'Car', vin: ' 1HGCM82633A004352 ' }] })).items[0].vin, '1HGCM82633A004352');
+});
