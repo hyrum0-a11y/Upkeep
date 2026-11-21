@@ -164,6 +164,19 @@ export function addEntries(s: Store, entries: NewEntry[], now: string, id: () =>
   return { ...s, items, log: [...s.log, ...entries.map((e) => ({ ...e, id: id(), entered: now }))] };
 }
 
+/** Fix an existing entry (date, reading, cost…). Moves the item's reading forward if the new reading is higher. */
+export function updateEntry(s: Store, id: string, e: NewEntry, now: string): Store {
+  const old = s.log.find((x) => x.id === id);
+  if (!old) throw new Error('Entry not found. It may have been deleted.');
+  if (!e.item || !e.service) throw new Error('Item and service are required.');
+  const items = s.items.map((i) =>
+    i.name === e.item && e.reading !== null && (i.reading === null || e.reading > i.reading)
+      ? { ...i, reading: e.reading, readingUpdated: now.slice(0, 10) }
+      : i,
+  );
+  return { ...s, items, log: s.log.map((x) => (x.id === id ? { ...e, id, entered: x.entered } : x)) };
+}
+
 export function deleteEntry(s: Store, id: string): Store {
   if (!s.log.some((e) => e.id === id)) throw new Error('Entry not found. It may already be deleted.');
   return { ...s, log: s.log.filter((e) => e.id !== id) };

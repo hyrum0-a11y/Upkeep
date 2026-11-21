@@ -134,7 +134,8 @@ function ItemRow({ it, data, onPress }: { it: Item; data: SheetData; onPress: ()
   const [err, setErr] = useState<string | null>(null);
   const sum = summarize(it, data);
   const color = sum.overdue ? colors.danger : sum.dueSoon ? colors.warn : sum.ok ? colors.good : colors.muted;
-  const sub = [itemTitle(it), it.meter && it.reading !== null ? formatReading(it.reading, it.meter) : ''].filter(Boolean).join(' · ');
+  const title = itemTitle(it);
+  const miles = it.meter && it.reading !== null ? formatReading(it.reading, it.meter) : '';
 
   async function save() {
     const n = parseNumber(value);
@@ -169,7 +170,18 @@ function ItemRow({ it, data, onPress }: { it: Item; data: SheetData; onPress: ()
           <Text style={{ color: colors.muted, fontSize: 22 }}>›</Text>
         )}
       </Row>
-      {sub ? <Text style={text.muted}>{sub}</Text> : null}
+      {title || miles ? (
+        <Text style={text.muted}>
+          {title}
+          {title && miles ? ' · ' : ''}
+          {miles ? (
+            // Tap the mileage to fix it.
+            <Text style={{ color: colors.primary }} onPress={() => setEditing(true)}>
+              {miles}
+            </Text>
+          ) : null}
+        </Text>
+      ) : null}
       <Text style={[text.body, { color, fontWeight: '600' }]}>{statusLine(sum)}</Text>
       {editing && (
         <>

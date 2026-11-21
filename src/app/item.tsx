@@ -2,7 +2,7 @@ import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Banner, Button, Card, Field, Row, StatusPill, colors, text } from '../components/ui';
-import { deleteSchedule, deleteService, refresh, saveSchedule, setReading, useSheet } from '../lib/api';
+import { deleteSchedule, refresh, saveSchedule, setReading, useSheet } from '../lib/api';
 import {
   byUrgency,
   formatCost,
@@ -28,6 +28,7 @@ export default function ItemScreen() {
   const [msg, setMsg] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [editing, setEditing] = useState<string | null>(null); // service being edited
+  const [open, setOpen] = useState<string | null>(null); // service row expanded
 
   const it = data?.items.find((x) => x.name === name);
   if (!data || !it) {
@@ -72,7 +73,16 @@ export default function ItemScreen() {
     } else go();
   };
 
-  // "Done": open Log service with this service picked and today's reading filled in.
+  const details = (s: ScheduleItem) =>
+    [
+      interval(s, m),
+      s.lastDone
+        ? `Last done ${formatDate(s.lastDone)}${s.lastReading && m ? ` at ${formatReading(s.lastReading, m)}` : ''}`
+        : 'No record yet',
+      s.part,
+    ].filter(Boolean);
+
+  // Open Log service with this service picked and the current reading filled in.
   const markDone = (s: ScheduleItem) =>
     router.push({
       pathname: '/add',
@@ -165,57 +175,70 @@ export default function ItemScreen() {
           />
         </Banner>
       )}
-      {schedule.map((s) =>
-        editing === s.service ? (
-          <ScheduleForm
-            key={s.service}
-            meter={m}
-            initial={s}
-            busy={busy}
-            onCancel={() => setEditing(null)}
-            onSave={(row) =>
-              run(
-                () => saveSchedule({ item: it.name, ...row }, s.service),
-                () => setEditing(null),
-              )
-            }
-            onDelete={() =>
-              Alert.alert(`Remove ${s.service}?`, 'It comes off the schedule. Past log entries stay.', [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                  text: 'Remove',
-                  style: 'destructive',
-                  onPress: () =>
-                    run(
-                      () => deleteSchedule(it.name, s.service),
-                      () => setEditing(null),
-                    ),
-                },
-              ])
-            }
-          />
-        ) : (
-          <Card key={s.service}>
-            <Row style={{ justifyContent: 'space-between' }}>
-              <Text style={[text.body, { fontWeight: '600', flex: 1 }]}>{s.service}</Text>
-              <StatusPill status={s.status} />
-            </Row>
-            <Text style={text.muted}>{interval(s, m)}</Text>
-            {s.lastDone ? (
-              <Text style={text.muted}>
-                Last done {formatDate(s.lastDone)}
-                {s.lastReading && m ? ` at ${formatReading(s.lastReading, m)}` : ''}
-              </Text>
-            ) : null}
-            {nextDue(s, m) ? <Text style={text.body}>Next: {nextDue(s, m)}</Text> : null}
-            {s.part ? <Text style={text.muted}>{s.part}</Text> : null}
-            <Row style={{ marginTop: 6 }}>
-              <Button label="✓ Done" onPress={() => markDone(s)} style={{ flex: 1 }} />
-              <Button label="Edit" variant="outline" onPress={() => setEditing(s.service)} style={{ flex: 1 }} />
-            </Row>
-          </Card>
-        ),
+      {editing ? (
+        <ScheduleForm
+          meter={m}
+          initial={schedule.find((s) => s.service === editing)}
+          busy={busy}
+          onCancel={() => setEditing(null)}
+          onSave={(row) =>
+            run(
+              () => saveSchedule({ item: it.name, ...row }, editing),
+              () => setEditing(null),
+            )
+          }
+          onDelete={() =>
+            Alert.alert(`Remove ${editing}?`, 'It comes off the schedule. Past log entries stay.', [
+              { text: 'Cancel', style: 'cancel' },
+              {
+                text: 'Remove',
+                style: 'destructive',
+                onPress: () =>
+                  run(
+                    () => deleteSchedule(it.name, editing),
+                    () => setEditing(null),
+                  ),
+              },
+            ])
+          }
+        />
+      ) : null}
+      {schedule.length > 0 && (
+        <Card style={{ paddingVertical: 4 }}>
+          {schedule.map((s, i) => (
+            <View key={s.service} style={i > 0 && styles.svcDivider}>
+              <Pressable
+                onPress={() => setOpen(open === s.service ? null : s.service)}
+                style={({ pressed }) => [styles.svcRow, pressed && { opacity: 0.6 }]}
+                accessibilityRole="button"
+                accessibilityState={{ expanded: open === s.service }}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={[text.body, { fontWeight: '600' }]}>{s.service}</Text>
+                  <Text style={text.muted} numberOfLines={1}>
+                    {nextDue(s, m) ? `Next: ${nextDue(s, m)}` : interval(s, m)}
+                  </Text>
+                </View>
+                <StatusPill status={s.status} />
+              </Pressable>
+              {open === s.service && (
+                <View style={{ paddingBottom: 10, gap: 4 }}>
+                  {details(s).map((line) => (
+                    <Text key={line} style={text.muted}>
+                      {line}
+                    </Text>
+                  ))}
+                  <Row style={{ marginTop: 6 }}>
+                    <Button label="Log it as done" onPress={() => markDone(s)} style={{ flex: 1 }} />
+                    <Button label="Edit schedule" variant="outline" onPress={() => setEditing(s.service)} style={{ flex: 1 }} />
+                  </Row>
+                </View>
+              )}
+            </View>
+          ))}
+        </Card>
       )}
+      <Text style={text.muted}>Tap a service for details, to log it, or to edit its schedule. Tap a history entry to fix it.</Text>
       {showAdd ? (
         <ScheduleForm
           meter={m}
@@ -235,7 +258,10 @@ export default function ItemScreen() {
       <Text style={text.section}>History</Text>
       {history.length === 0 && <Text style={text.muted}>Nothing logged yet.</Text>}
       {history.map((e) => (
-        <Card key={e.id || `${e.date}|${e.service}`}>
+        <Card
+          key={e.id || `${e.date}|${e.service}`}
+          onPress={e.id ? () => router.push({ pathname: '/add', params: { id: e.id } }) : undefined}
+        >
           <Row style={{ justifyContent: 'space-between' }}>
             <Text style={[text.body, { fontWeight: '600', flex: 1 }]}>{e.service}</Text>
             <Text style={text.muted}>{formatDate(e.date)}</Text>
@@ -244,19 +270,6 @@ export default function ItemScreen() {
             {[e.reading !== null && m && formatReading(e.reading, m), formatCost(e.cost), e.shop].filter(Boolean).join(' · ')}
           </Text>
           {e.notes ? <Text style={text.body}>{e.notes}</Text> : null}
-          {e.id ? (
-            <Text
-              style={{ color: colors.danger, fontSize: 14, marginTop: 4 }}
-              onPress={() =>
-                Alert.alert('Delete this entry?', `${e.service} on ${formatDate(e.date)}.`, [
-                  { text: 'Cancel', style: 'cancel' },
-                  { text: 'Delete', style: 'destructive', onPress: () => run(() => deleteService(e.id)) },
-                ])
-              }
-            >
-              Delete
-            </Text>
-          ) : null}
         </Card>
       ))}
     </ScrollView>
@@ -328,4 +341,6 @@ function ScheduleForm({
 
 const styles = StyleSheet.create({
   wrap: { padding: 16, gap: 12, paddingBottom: 40 },
+  svcRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10 },
+  svcDivider: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
 });

@@ -193,3 +193,18 @@ test('summarize counts statuses and finds next and last', () => {
   assert.equal(statusLine(summarize(d.items[1], d)), 'All up to date');
   assert.equal(statusLine(summarize(d.items[2], d)), 'Nothing scheduled');
 });
+
+test('updateEntry fixes an entry and keeps entered', () => {
+  const s = D.updateEntry(
+    store,
+    'a1',
+    { item: 'Odyssey', date: '2026-05-02', reading: 205000, service: 'Oil & filter', cost: 50, shop: 'Shop', notes: 'fixed' },
+    `${TODAY}T10:00:00Z`,
+  );
+  const e = s.log.find((x) => x.id === 'a1')!;
+  assert.equal(e.date, '2026-05-02');
+  assert.equal(e.cost, 50);
+  assert.equal(e.entered, store.log[0].entered);
+  assert.equal(s.items[0].reading, 205000);
+  assert.throws(() => D.updateEntry(store, 'nope', e, TODAY), /not found/);
+});

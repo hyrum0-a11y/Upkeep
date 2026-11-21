@@ -185,6 +185,10 @@ export function addServices(entries: D.NewEntry[]) {
   return change(`Starting points for ${entries[0]?.item ?? 'items'}`, (s) => D.addEntries(s, entries, now()));
 }
 
+export function updateService(id: string, entry: D.NewEntry) {
+  return change(`Edit ${entry.service} for ${entry.item}`, (s) => D.updateEntry(s, id, entry, now()));
+}
+
 export function deleteService(id: string) {
   return change('Delete a log entry', (s) => D.deleteEntry(s, id));
 }
