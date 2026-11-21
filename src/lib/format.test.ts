@@ -227,5 +227,23 @@ test('readings: dated history sets the current reading by latest date', async ()
   assert.ok(usage !== null && usage > 800 && usage < 950); // 11,000 miles over 385 days ≈ 870/month
   assert.equal(perMonth('Water filter', D.compute(s, TODAY)), null);
   s = D.saveItem(s, { ...s.items[0], name: 'Van' }, 'Odyssey');
-  assert.ok(s.readings.every((r) => r.item === 'Van'));
+  assert.ok(!s.readings.some((r) => r.item === 'Odyssey'));
+  assert.ok(s.readings.some((r) => r.item === 'Van'));
+});
+
+test('readings: current reading shows in history and can be fixed in place', () => {
+  // parseStore adds the item's existing reading as a history row.
+  const start = store.readings.find((r) => r.item === 'Odyssey')!;
+  assert.equal(start.reading, 201234);
+  assert.equal(start.date, '2026-11-20');
+  assert.ok(store.readings.some((r) => r.item === 'Mower' && r.reading === 87));
+  assert.ok(!store.readings.some((r) => r.item === 'Water filter'));
+  let s = D.updateReading(store, start.id, 200500, '2026-11-21');
+  assert.equal(s.items[0].reading, 200500);
+  assert.equal(s.items[0].readingUpdated, '2026-11-21');
+  assert.equal(s.readings.filter((r) => r.item === 'Odyssey').length, 1);
+  assert.throws(() => D.updateReading(s, 'nope', 1, TODAY), /not found/);
+  // Stable across a save/load round trip (no duplicate start rows).
+  s = D.parseStore(D.serializeStore(s));
+  assert.equal(s.readings.filter((r) => r.item === 'Odyssey').length, 1);
 });

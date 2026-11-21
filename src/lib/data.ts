@@ -53,7 +53,7 @@ export function parseStore(json: string): Store {
   } catch {
     throw new Error(`${DATA_FILE} isn't valid JSON. If you edited it on GitHub, check for a missing comma or quote.`);
   }
-  return {
+  const store: Store = {
     version: 1,
     items: list(raw.items)
       .map((r) => ({
@@ -89,6 +89,18 @@ export function parseStore(json: string): Store {
       .map((r) => ({ id: str(r.id), item: str(r.item), date: str(r.date), reading: num(r.reading) }))
       .filter((r): r is Reading => !!(r.item && r.date && r.reading !== null)),
   };
+  // An item's current reading should always appear in its history so it can be fixed later.
+  for (const it of store.items) {
+    if (it.reading !== null && !store.readings.some((r) => r.item === it.name)) {
+      store.readings.push({
+        id: `start-${it.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
+        item: it.name,
+        date: it.readingUpdated || '2026-01-01',
+        reading: it.reading,
+      });
+    }
+  }
+  return store;
 }
 
 /** Pretty JSON with one log entry per line, so GitHub diffs stay readable. */
@@ -195,9 +207,18 @@ export function setReading(s: Store, item: string, reading: number, date: string
   return syncCurrent({ ...s, readings: [...s.readings, { id: id(), item, date, reading }] }, item);
 }
 
+/** Replace a reading's value and/or date. */
+export function updateReading(s: Store, id: string, reading: number, date: string): Store {
+  const r = s.readings.find((x) => x.id === id);
+  if (!r) throw new Error('Reading not found. It may have been deleted.');
+  return syncCurrent({ ...s, readings: s.readings.map((x) => (x.id === id ? { ...x, reading, date } : x)) }, r.item);
+}
+
 export function deleteReading(s: Store, id: string): Store {
   const r = s.readings.find((x) => x.id === id);
   if (!r) throw new Error('Reading not found. It may already be deleted.');
+  if (s.readings.filter((x) => x.item === r.item).length === 1)
+    throw new Error("That's the only reading, so it's the current one. Edit it instead.");
   return syncCurrent({ ...s, readings: s.readings.filter((x) => x.id !== id) }, r.item);
 }
 

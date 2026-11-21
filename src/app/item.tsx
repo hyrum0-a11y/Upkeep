@@ -2,7 +2,7 @@ import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Banner, Button, Card, Field, Row, StatusPill, colors, text } from '../components/ui';
-import { deleteReading, deleteSchedule, refresh, saveSchedule, setReading, useSheet } from '../lib/api';
+import { deleteReading, deleteSchedule, refresh, saveSchedule, setReading, updateReading, useSheet } from '../lib/api';
 import {
   byUrgency,
   formatCost,
@@ -20,6 +20,7 @@ import {
   statusLine,
   summarize,
   type Meter,
+  type Reading,
   type ScheduleItem,
 } from '../lib/format';
 
@@ -29,6 +30,8 @@ export default function ItemScreen() {
   const [reading, setReadingText] = useState('');
   const [readingDate, setReadingDate] = useState(toISODate(new Date()));
   const [allReadings, setAllReadings] = useState(false);
+  const [meterOpen, setMeterOpen] = useState(false);
+  const [editingReading, setEditingReading] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
@@ -152,48 +155,87 @@ export default function ItemScreen() {
 
       {m ? (
         <Card>
-          <Text style={text.section}>{meterLabel(m)}</Text>
-          <Text style={text.h2}>{it.reading === null ? 'Not set yet' : formatReading(it.reading, m)}</Text>
-          {it.readingUpdated ? <Text style={text.muted}>Updated {formatDate(it.readingUpdated)}</Text> : null}
-          <Row style={{ marginTop: 6 }}>
+          <Pressable
+            onPress={() => setMeterOpen(!meterOpen)}
+            style={{ flexDirection: 'row', alignItems: 'center' }}
+            accessibilityRole="button"
+            accessibilityState={{ expanded: meterOpen }}
+          >
             <View style={{ flex: 1 }}>
-              <Field
-                label="New reading"
-                value={reading}
-                onChangeText={setReadingText}
-                placeholder={m === 'hours' ? 'e.g. 250' : 'e.g. 201500'}
-                keyboardType="number-pad"
-              />
+              <Text style={text.section}>{meterLabel(m)}</Text>
+              <Text style={text.h2}>{it.reading === null ? 'Not set yet' : formatReading(it.reading, m)}</Text>
+              {it.readingUpdated ? <Text style={text.muted}>as of {formatDate(it.readingUpdated)}</Text> : null}
             </View>
-            <View style={{ flex: 1 }}>
-              <Field label="On (date)" value={readingDate} onChangeText={setReadingDate} keyboardType="numbers-and-punctuation" />
-            </View>
-          </Row>
-          <Button label="Save reading" onPress={saveReading} disabled={busy || !reading.trim()} />
-          {readings.length > 0 && (
+            <Text style={{ color: colors.primary, fontSize: 15 }}>{meterOpen ? 'Close ▴' : 'Update ▾'}</Text>
+          </Pressable>
+          {meterOpen && (
             <>
-              <Text style={[text.section, { marginTop: 8 }]}>History</Text>
-              {(allReadings ? readings : readings.slice(0, 5)).map((r) => (
-                <Pressable
-                  key={r.id}
-                  onPress={() =>
-                    Alert.alert(`${formatReading(r.reading, m)} on ${formatDate(r.date)}`, 'Delete this reading?', [
-                      { text: 'Cancel', style: 'cancel' },
-                      { text: 'Delete', style: 'destructive', onPress: () => run(() => deleteReading(r.id)) },
-                    ])
-                  }
-                  style={({ pressed }) => [styles.readingRow, pressed && { opacity: 0.6 }]}
-                >
-                  <Text style={text.body}>{formatReading(r.reading, m)}</Text>
-                  <Text style={text.muted}>{formatDate(r.date)}</Text>
-                </Pressable>
-              ))}
-              {readings.length > 5 && (
-                <Text style={{ color: colors.primary, fontSize: 15 }} onPress={() => setAllReadings(!allReadings)}>
-                  {allReadings ? 'Show fewer' : `Show all ${readings.length}`}
-                </Text>
+              <Row style={{ marginTop: 6 }}>
+                <View style={{ flex: 1 }}>
+                  <Field
+                    label="New reading"
+                    value={reading}
+                    onChangeText={setReadingText}
+                    placeholder={m === 'hours' ? 'e.g. 250' : 'e.g. 201500'}
+                    keyboardType="number-pad"
+                  />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Field label="On (date)" value={readingDate} onChangeText={setReadingDate} keyboardType="numbers-and-punctuation" />
+                </View>
+              </Row>
+              <Button label="Save new reading" onPress={saveReading} disabled={busy || !reading.trim()} />
+              {readings.length > 0 && (
+                <>
+                  <Text style={[text.section, { marginTop: 8 }]}>Recent readings</Text>
+                  {(allReadings ? readings : readings.slice(0, 5)).map((r) =>
+                    editingReading === r.id ? (
+                      <ReadingEditor
+                        key={r.id}
+                        meter={m}
+                        initial={r}
+                        busy={busy}
+                        onCancel={() => setEditingReading(null)}
+                        onSave={(value, date) =>
+                          run(
+                            () => updateReading(r.id, value, date),
+                            () => setEditingReading(null),
+                          )
+                        }
+                        onDelete={() =>
+                          Alert.alert(`Delete ${formatReading(r.reading, m)} on ${formatDate(r.date)}?`, '', [
+                            { text: 'Cancel', style: 'cancel' },
+                            {
+                              text: 'Delete',
+                              style: 'destructive',
+                              onPress: () =>
+                                run(
+                                  () => deleteReading(r.id),
+                                  () => setEditingReading(null),
+                                ),
+                            },
+                          ])
+                        }
+                      />
+                    ) : (
+                      <Pressable
+                        key={r.id}
+                        onPress={() => setEditingReading(r.id)}
+                        style={({ pressed }) => [styles.readingRow, pressed && { opacity: 0.6 }]}
+                      >
+                        <Text style={text.body}>{formatReading(r.reading, m)}</Text>
+                        <Text style={text.muted}>{formatDate(r.date)} ✎</Text>
+                      </Pressable>
+                    ),
+                  )}
+                  {readings.length > 5 && (
+                    <Text style={{ color: colors.primary, fontSize: 15 }} onPress={() => setAllReadings(!allReadings)}>
+                      {allReadings ? 'Show fewer' : `Show all ${readings.length}`}
+                    </Text>
+                  )}
+                  <Text style={text.muted}>Tap a reading to fix it. Saving replaces the old one.</Text>
+                </>
               )}
-              <Text style={text.muted}>Tap a reading to delete it.</Text>
             </>
           )}
         </Card>
@@ -323,6 +365,54 @@ export default function ItemScreen() {
   );
 }
 
+/** Fix one reading in place: new value and/or date. */
+function ReadingEditor({
+  meter,
+  initial,
+  busy,
+  onSave,
+  onCancel,
+  onDelete,
+}: {
+  meter: Meter;
+  initial: Reading;
+  busy: boolean;
+  onSave: (reading: number, date: string) => void;
+  onCancel: () => void;
+  onDelete: () => void;
+}) {
+  const [value, setValue] = useState(String(initial.reading));
+  const [date, setDate] = useState(initial.date);
+  const [err, setErr] = useState<string | null>(null);
+  const save = () => {
+    const n = parseNumber(value);
+    if (n === null || Number.isNaN(n) || n < 0) return setErr('Type the reading as a number.');
+    if (!isISODate(date)) return setErr('Date should look like 2026-11-21.');
+    setErr(null);
+    onSave(n, date);
+  };
+  return (
+    <View style={styles.readingEdit}>
+      <Row>
+        <View style={{ flex: 1 }}>
+          <Field label={meter === 'hours' ? 'Hours' : 'Mileage'} value={value} onChangeText={setValue} keyboardType="number-pad" />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Field label="Date" value={date} onChangeText={setDate} keyboardType="numbers-and-punctuation" />
+        </View>
+      </Row>
+      {err ? <Text style={{ color: colors.danger, fontSize: 14 }}>{err}</Text> : null}
+      <Row>
+        <Button label="Cancel" variant="outline" onPress={onCancel} style={{ flex: 1 }} />
+        <Button label="Save" onPress={save} disabled={busy} style={{ flex: 1 }} />
+      </Row>
+      <Text style={{ color: colors.danger, fontSize: 14 }} onPress={onDelete}>
+        Delete this reading
+      </Text>
+    </View>
+  );
+}
+
 type ScheduleFields = { service: string; every: number | null; everyMonths: number | null; part: string };
 
 /** Add or edit a schedule row: name, how often, and what to buy. */
@@ -388,7 +478,14 @@ function ScheduleForm({
 
 const styles = StyleSheet.create({
   wrap: { padding: 16, gap: 12, paddingBottom: 40 },
-  readingRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6 },
+  readingRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8 },
+  readingEdit: {
+    gap: 8,
+    paddingVertical: 8,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+  },
   svcRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10 },
   svcDivider: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
 });
