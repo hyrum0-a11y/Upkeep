@@ -82,7 +82,6 @@ export default function Home() {
 
       {data && (
         <>
-          <Button label="＋ Log service" onPress={() => router.push('/add')} />
 
           {vehicles.length > 0 && <Text style={text.section}>Vehicles</Text>}
           {vehicles.map((it) => (

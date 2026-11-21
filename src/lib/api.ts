@@ -198,6 +198,10 @@ export function setReading(item: string, reading: number, date: string = today()
   return change(`${item} reading ${reading} on ${date}`, (s) => D.setReading(s, item, reading, date));
 }
 
+export function updateReading(id: string, reading: number, date: string) {
+  return change(`Fix a reading: ${reading} on ${date}`, (s) => D.updateReading(s, id, reading, date));
+}
+
 export function deleteReading(id: string) {
   return change('Delete a reading', (s) => D.deleteReading(s, id));
 }

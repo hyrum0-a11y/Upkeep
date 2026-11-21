@@ -5,8 +5,8 @@ An Android app for the family's maintenance log: vehicles and household equipmen
 ## What it does
 
 - **Home:** a tappable row for each vehicle and piece of equipment with its status; tap the mileage (or **Update miles**) to change it, then everything overdue or due soon. **＋ Add a vehicle or equipment** at the bottom.
-- **Item page:** a summary (status, purchase date, next due, last service, total spent), the odometer or hour meter (save a reading for any date; the history is listed, tap one to delete it, and the summary shows average miles per month), and a compact list of services. Tap a service to expand it: details, what to buy, **Log it as done** (opens Log service with it picked and the mileage filled in) and **Edit schedule** (rename, change how often or the part, or remove). Tap a history entry to fix or delete it. **Edit** at the top changes the item's details, including purchase date.
-- **Log service:** pick the item and service, date, reading, cost, shop, notes. The item's reading moves forward if the new one is higher.
+- **Item page:** a summary (status, purchase date, next due, last service, total spent), the odometer or hour meter (collapsed; tap **Update** to save a reading for any date and see the last 5 readings, tap one to fix its value or date in place; the summary shows average miles per month), and a compact list of services, each showing last done and next due. Tap a service to expand it: details, what to buy, its last 3 records (tap one to fix it), **Log it as done** (opens Log service with it picked and the mileage filled in) and **Edit schedule** (rename, change how often or the part, or remove). Tap a history entry to fix or delete it. **Edit** at the top changes the item's details, including purchase date.
+- **Log service** (from an item page): pick the service, date, reading, cost, shop, notes. The item's reading moves forward if the new one is higher.
 - **Set starting points:** for services with no record yet, enter roughly when each was last done (a year is fine), all at once.
 - **Updates:** when a new build is out, the home screen shows **Download & install**.
 
