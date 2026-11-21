@@ -45,7 +45,7 @@ The repo has to stay public for the update check to see new releases. No persona
 ## Development
 
 ```bash
-npm install
+npm ci              # installs the exact versions in package-lock.json
 npx expo start      # Expo Go for quick testing
 npm run typecheck
 npm test            # unit tests for the data helpers
@@ -53,3 +53,4 @@ npm test            # unit tests for the data helpers
 
 - Screens: `src/app/` (Expo Router). Sheet access: `src/lib/api.ts`. Parsing and formatting: `src/lib/format.ts`. Updates: `src/lib/update.ts`.
 - Pull requests run the **Checks** workflow (typecheck, tests, bundle) before merging.
+- `package-lock.json` is committed and the workflows install with `npm ci`. Add or upgrade packages with `npx expo install <package>` and commit the updated lockfile with the change.

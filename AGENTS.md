@@ -47,4 +47,4 @@ Docs: https://docs.expo.dev/eas/index.md
 - The Sheet does the due-date math (Schedule tab formulas). The app only displays it, so the Sheet and the app always agree.
 - The web app URL and key are entered in the app's Settings and kept on the phone. Never commit them.
 - Updates: every merge to `main` builds an APK release; the app checks GitHub Releases (`src/lib/update.ts`) and offers Download & install. The repo must stay public for that check.
-- `package-lock.json` was not committed at first (it was created without network access). Commit it once a build has produced one, then switch the workflows back to `npm ci` with `cache: npm`.
+- `package-lock.json` is committed; the workflows use `npm ci` with `cache: npm`. Commit lockfile changes along with any dependency change, or CI will fail.
