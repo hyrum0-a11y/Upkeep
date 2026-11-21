@@ -317,6 +317,27 @@ export default function ItemScreen() {
                       {line}
                     </Text>
                   ))}
+                  {(() => {
+                    const recent = history.filter((e) => e.service === s.service);
+                    return recent.length ? (
+                      <>
+                        <Text style={[text.section, { marginTop: 6 }]}>Last {Math.min(3, recent.length)} times</Text>
+                        {recent.slice(0, 3).map((e) => (
+                          <Pressable
+                            key={e.id || e.date}
+                            onPress={e.id ? () => router.push({ pathname: '/add', params: { id: e.id } }) : undefined}
+                            style={({ pressed }) => [styles.readingRow, pressed && { opacity: 0.6 }]}
+                          >
+                            <Text style={text.body}>{formatDate(e.date)}</Text>
+                            <Text style={text.muted}>
+                              {[e.reading !== null && m && formatReading(e.reading, m), formatCost(e.cost)].filter(Boolean).join(' · ')}
+                              {e.id ? '  ✎' : ''}
+                            </Text>
+                          </Pressable>
+                        ))}
+                      </>
+                    ) : null;
+                  })()}
                   <Row style={{ marginTop: 6 }}>
                     <Button label="Log it as done" onPress={() => markDone(s)} style={{ flex: 1 }} />
                     <Button label="Edit schedule" variant="outline" onPress={() => setEditing(s.service)} style={{ flex: 1 }} />
