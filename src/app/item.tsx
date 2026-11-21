@@ -258,7 +258,12 @@ export default function ItemScreen() {
                 <View style={{ flex: 1 }}>
                   <Text style={[text.body, { fontWeight: '600' }]}>{s.service}</Text>
                   <Text style={text.muted} numberOfLines={1}>
-                    {nextDue(s, m) ? `Next: ${nextDue(s, m)}` : interval(s, m)}
+                    {s.lastDone
+                      ? `Last: ${formatDate(s.lastDone)}${s.lastReading !== null && m ? ` at ${formatReading(s.lastReading, m)}` : ''}`
+                      : 'Last: never logged'}
+                  </Text>
+                  <Text style={text.muted} numberOfLines={1}>
+                    {nextDue(s, m) ? `Next: ${nextDue(s, m)}` : interval(s, m).replace(/^every/, 'Every')}
                   </Text>
                 </View>
                 <StatusPill status={s.status} />
