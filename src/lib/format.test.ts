@@ -193,3 +193,39 @@ test('summarize counts statuses and finds next and last', () => {
   assert.equal(statusLine(summarize(d.items[1], d)), 'All up to date');
   assert.equal(statusLine(summarize(d.items[2], d)), 'Nothing scheduled');
 });
+
+test('updateEntry fixes an entry and keeps entered', () => {
+  const s = D.updateEntry(
+    store,
+    'a1',
+    { item: 'Odyssey', date: '2026-05-02', reading: 205000, service: 'Oil & filter', cost: 50, shop: 'Shop', notes: 'fixed' },
+    `${TODAY}T10:00:00Z`,
+  );
+  const e = s.log.find((x) => x.id === 'a1')!;
+  assert.equal(e.date, '2026-05-02');
+  assert.equal(e.cost, 50);
+  assert.equal(e.entered, store.log[0].entered);
+  assert.equal(s.items[0].reading, 205000);
+  assert.throws(() => D.updateEntry(store, 'nope', e, TODAY), /not found/);
+});
+
+test('readings: dated history sets the current reading by latest date', async () => {
+  const { perMonth } = await import('./format.ts');
+  let n = 0;
+  const id = () => `r${++n}`;
+  let s = D.setReading(store, 'Odyssey', 202000, '2026-11-21', id);
+  assert.equal(s.items[0].reading, 202000);
+  s = D.setReading(s, 'Odyssey', 199000, '2026-09-01', id); // back-dated: current stays
+  assert.equal(s.items[0].reading, 202000);
+  assert.equal(s.items[0].readingUpdated, '2026-11-21');
+  s = D.setReading(s, 'Odyssey', 201500, '2026-11-21', id); // same day fix: last one wins
+  assert.equal(s.items[0].reading, 201500);
+  s = D.deleteReading(s, 'r3');
+  assert.equal(s.items[0].reading, 202000);
+  assert.deepEqual(D.parseStore(D.serializeStore(s)), s);
+  const usage = perMonth('Odyssey', D.compute(s, TODAY));
+  assert.ok(usage !== null && usage > 800 && usage < 950); // 11,000 miles over 385 days ≈ 870/month
+  assert.equal(perMonth('Water filter', D.compute(s, TODAY)), null);
+  s = D.saveItem(s, { ...s.items[0], name: 'Van' }, 'Odyssey');
+  assert.ok(s.readings.every((r) => r.item === 'Van'));
+});

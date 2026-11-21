@@ -1,24 +1,27 @@
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
-import { Banner, Button, Chip, Field, Row, text } from '../components/ui';
-import { addService, useSheet } from '../lib/api';
-import { formatReading, isISODate, parseNumber, toISODate } from '../lib/format';
+import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Banner, Button, Chip, Field, Row, colors, text } from '../components/ui';
+import { addService, deleteService, updateService, useSheet } from '../lib/api';
+import { formatDate, formatReading, isISODate, parseNumber, toISODate } from '../lib/format';
 
 const OTHER = 'Other…';
 
 export default function AddService() {
-  const params = useLocalSearchParams<{ item?: string; service?: string; reading?: string }>();
+  // ?id=… edits an existing entry; otherwise this logs a new one (optionally prefilled).
+  const params = useLocalSearchParams<{ id?: string; item?: string; service?: string; reading?: string }>();
   const { data } = useSheet();
   const items = data?.items ?? [];
-  const [item, setItem] = useState(params.item ?? (items.length === 1 ? items[0].name : ''));
-  const [service, setService] = useState(params.service ?? '');
-  const [otherName, setOtherName] = useState('');
-  const [date, setDate] = useState(toISODate(new Date()));
-  const [reading, setReadingText] = useState(params.reading ?? '');
-  const [cost, setCost] = useState('');
-  const [shop, setShop] = useState('');
-  const [notes, setNotes] = useState('');
+  const old = params.id ? data?.log.find((e) => e.id === params.id) : undefined;
+  const scheduled = (it: string, svc: string) => !!data?.schedule.some((s) => s.item === it && s.service === svc);
+  const [item, setItem] = useState(old?.item ?? params.item ?? (items.length === 1 ? items[0].name : ''));
+  const [service, setService] = useState(old ? (scheduled(old.item, old.service) ? old.service : OTHER) : (params.service ?? ''));
+  const [otherName, setOtherName] = useState(old && !scheduled(old.item, old.service) ? old.service : '');
+  const [date, setDate] = useState(old?.date ?? toISODate(new Date()));
+  const [reading, setReadingText] = useState(old ? (old.reading !== null ? String(old.reading) : '') : (params.reading ?? ''));
+  const [cost, setCost] = useState(old?.cost != null ? String(old.cost) : '');
+  const [shop, setShop] = useState(old?.shop ?? '');
+  const [notes, setNotes] = useState(old?.notes ?? '');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -39,7 +42,8 @@ export default function AddService() {
     setBusy(true);
     setErr(null);
     try {
-      await addService({ item, date, reading: r, service: name, cost: c, shop: shop.trim(), notes: notes.trim() });
+      const entry = { item, date, reading: r, service: name, cost: c, shop: shop.trim(), notes: notes.trim() };
+      await (old ? updateService(old.id, entry) : addService(entry));
       router.back();
     } catch (e) {
       setErr((e as Error).message);
@@ -49,6 +53,8 @@ export default function AddService() {
 
   return (
     <ScrollView contentContainerStyle={styles.wrap} keyboardShouldPersistTaps="handled">
+      {old && <Stack.Screen options={{ title: 'Edit entry' }} />}
+      {params.id && !old ? <Text style={text.muted}>This entry is gone. It may have been deleted.</Text> : null}
       {err && (
         <Banner tone="warn">
           <Text style={text.body}>{err}</Text>
@@ -78,7 +84,9 @@ export default function AddService() {
               <Chip key={s} label={s} selected={service === s} onPress={() => setService(s)} />
             ))}
           </Row>
-          {service === OTHER && <Field label="What was done" value={otherName} onChangeText={setOtherName} placeholder="e.g. New battery" />}
+          {service === OTHER && (
+            <Field label="What was done" value={otherName} onChangeText={setOtherName} placeholder="e.g. New battery" />
+          )}
           {service === OTHER && <Text style={text.muted}>Only names that match the schedule count toward due dates.</Text>}
         </>
       ) : null}
@@ -108,7 +116,31 @@ export default function AddService() {
       </Row>
       <Field label="Notes" value={notes} onChangeText={setNotes} multiline placeholder="Parts, oil or filter type, anything to remember" />
 
-      <Button label={busy ? 'Saving…' : 'Save'} onPress={save} disabled={busy} style={{ marginTop: 8 }} />
+      <Button label={busy ? 'Saving…' : 'Save'} onPress={save} disabled={busy || (!!params.id && !old)} style={{ marginTop: 8 }} />
+      {old && (
+        <Text
+          style={{ color: colors.danger, fontSize: 15, textAlign: 'center', marginTop: 8 }}
+          onPress={() =>
+            Alert.alert('Delete this entry?', `${old.service} on ${formatDate(old.date)}.`, [
+              { text: 'Cancel', style: 'cancel' },
+              {
+                text: 'Delete',
+                style: 'destructive',
+                onPress: async () => {
+                  try {
+                    await deleteService(old.id);
+                    router.back();
+                  } catch (e) {
+                    setErr((e as Error).message);
+                  }
+                },
+              },
+            ])
+          }
+        >
+          Delete this entry
+        </Text>
+      )}
     </ScrollView>
   );
 }
