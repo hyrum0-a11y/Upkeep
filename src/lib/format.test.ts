@@ -18,6 +18,8 @@ import {
   nextDue,
   parseNumber,
   perMonth,
+  mileageAt,
+  mileageChart,
   readingHistory,
   spendingByYear,
   statusLine,
@@ -365,4 +367,22 @@ test('reading history includes service mileages', () => {
     ],
   );
   assert.equal(h[1].entryId, 'a1');
+});
+
+test('mileage chart data', () => {
+  const pts = [
+    { date: '2026-01-01', reading: 1000 },
+    { date: '2026-01-11', reading: 2000 },
+  ];
+  assert.equal(mileageAt('2026-01-06', pts), 1500);
+  assert.equal(mileageAt('2025-01-01', pts), 1000);
+  assert.equal(mileageAt('2027-01-01', pts), 2000);
+  const c = mileageChart('Odyssey', d, '2026-01-01');
+  assert.deepEqual(
+    c.points.map((p) => p.date),
+    ['2026-05-01', '2026-11-20'],
+  );
+  assert.equal(c.markers.length, 1); // only the $45.50 oil change has a cost
+  assert.equal(c.markers[0].reading, 196000);
+  assert.equal(mileageChart('Odyssey', d, '').points.length, 3);
 });
