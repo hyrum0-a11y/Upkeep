@@ -4,7 +4,7 @@ import { Linking, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Banner, Button, Card, Row, StatusPill, accentFor, colors, text } from '../components/ui';
 import { refresh, useSheet } from '../lib/api';
-import { byUrgency, formatCost, isVehicle, itemIcon, nextDue, summarize, type SheetData } from '../lib/format';
+import { byUrgency, displayName, formatCost, isVehicle, monthlySpending, nameFor, nextDue, summarize, type SheetData } from '../lib/format';
 import { checkForUpdate, installUpdate, type Update } from '../lib/update';
 
 export default function Home() {
@@ -99,7 +99,7 @@ export default function Home() {
               <Card key={`${s.item}|${s.service}`} onPress={() => open(s.item)}>
                 <Row style={{ justifyContent: 'space-between' }}>
                   <Text style={[text.body, { fontWeight: '600', flex: 1 }]}>
-                    {s.item} · {s.service}
+                    {nameFor(s.item, data)} · {s.service}
                   </Text>
                   <StatusPill status={s.status} />
                 </Row>
@@ -123,56 +123,45 @@ export default function Home() {
   );
 }
 
-/** Spending per vehicle / equipment: last 6 months vs. last 12 months, as paired bars. */
+const MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const CHART_H = 140;
+
+/** Monthly spending for the last 9 months, stacked by vehicle / equipment. */
 function SpendChart({ data }: { data: SheetData }) {
-  const rows = data.items
-    .map((it, i) => ({ it, i, ...summarize(it, data) }))
-    .filter((r) => r.spent12mo > 0)
-    .sort((a, b) => b.spent12mo - a.spent12mo);
-  if (rows.length === 0) return null;
-  const max = Math.max(...rows.map((r) => r.spent12mo));
+  const months = monthlySpending(data, 9);
+  const max = Math.max(...months.map((m) => m.total));
+  if (!max) return null;
+  const shown = data.items.map((it, i) => ({ it, color: accentFor(i) })).filter(({ it }) => months.some((m) => m.byItem[it.name]));
+  const short = (n: number) => (n >= 1000 ? `$${(n / 1000).toFixed(1)}k` : `$${Math.round(n)}`);
   return (
     <Card>
-      <Text style={text.section}>Spending by vehicle & equipment</Text>
-      <Row style={{ gap: 16 }}>
-        <Row style={{ gap: 6 }}>
-          <View style={[styles.swatch, { backgroundColor: colors.primary }]} />
-          <Text style={text.muted}>Last 6 months</Text>
-        </Row>
-        <Row style={{ gap: 6 }}>
-          <View style={[styles.swatch, { backgroundColor: colors.primary, opacity: 0.35 }]} />
-          <Text style={text.muted}>Last 12 months</Text>
-        </Row>
-      </Row>
-      {rows.map((r) => (
-        <View key={r.it.name} style={{ gap: 3, marginTop: 6 }}>
-          <Text style={[text.body, { fontWeight: '600' }]} numberOfLines={1}>
-            {itemIcon(r.it)} {r.it.name}
-          </Text>
-          <BarLine value={r.spent6mo} max={max} color={accentFor(r.i)} />
-          <BarLine value={r.spent12mo} max={max} color={accentFor(r.i)} faded />
-        </View>
-      ))}
-    </Card>
-  );
-}
-
-function BarLine({ value, max, color, faded }: { value: number; max: number; color: string; faded?: boolean }) {
-  return (
-    <Row style={{ gap: 8 }}>
-      <View style={styles.track}>
-        <View
-          style={{
-            width: `${max ? (value / max) * 100 : 0}%`,
-            height: '100%',
-            backgroundColor: color,
-            opacity: faded ? 0.35 : 1,
-            borderRadius: 5,
-          }}
-        />
+      <Text style={text.section}>Monthly spending</Text>
+      <View style={styles.chart}>
+        {months.map((m) => (
+          <View key={m.month} style={styles.col}>
+            <Text style={styles.colTotal} numberOfLines={1} adjustsFontSizeToFit>
+              {m.total ? short(m.total) : ''}
+            </Text>
+            <View style={{ height: CHART_H, justifyContent: 'flex-end', width: '70%' }}>
+              {shown
+                .filter(({ it }) => m.byItem[it.name])
+                .map(({ it, color }) => (
+                  <View key={it.name} style={{ height: (m.byItem[it.name] / max) * CHART_H, backgroundColor: color }} />
+                ))}
+            </View>
+            <Text style={styles.colLabel}>{MONTH_ABBR[Number(m.month.slice(5)) - 1]}</Text>
+          </View>
+        ))}
       </View>
-      <Text style={[text.muted, { width: 84, textAlign: 'right' }]}>{value ? formatCost(value) : '$0'}</Text>
-    </Row>
+      <View style={styles.legend}>
+        {shown.map(({ it, color }) => (
+          <Row key={it.name} style={{ gap: 6 }}>
+            <View style={[styles.swatch, { backgroundColor: color }]} />
+            <Text style={text.muted}>{displayName(it)}</Text>
+          </Row>
+        ))}
+      </View>
+    </Card>
   );
 }
 
@@ -192,7 +181,11 @@ function Tile({ icon, title, detail, onPress }: { icon: string; title: string; d
 const styles = StyleSheet.create({
   wrap: { padding: 16, gap: 12 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  track: { flex: 1, height: 10, borderRadius: 5, backgroundColor: colors.border, overflow: 'hidden' },
+  chart: { flexDirection: 'row', alignItems: 'flex-end', gap: 2, marginTop: 4 },
+  col: { flex: 1, alignItems: 'center', gap: 2 },
+  colTotal: { fontSize: 10, color: colors.muted },
+  colLabel: { fontSize: 11, color: colors.muted },
+  legend: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 14, rowGap: 4, marginTop: 6 },
   swatch: { width: 12, height: 12, borderRadius: 3 },
   tile: {
     flexBasis: '47%',

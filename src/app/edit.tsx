@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Alert, StyleSheet, Text, View } from 'react-native';
 import { Banner, Button, Chip, Field, FormScroll, Row, colors, text } from '../components/ui';
 import { deleteItem, saveItem, useSheet } from '../lib/api';
-import { isISODate, type Item, type Meter } from '../lib/format';
+import { displayName, isISODate, type Item, type Meter } from '../lib/format';
 
 // Quick starting schedules for new things; edit or remove them afterwards on the item page.
 const PRESETS: Record<string, { service: string; every: number | null; everyMonths: number | null; part: string }[]> = {
@@ -68,7 +68,7 @@ export default function EditItem() {
   }
 
   const remove = () =>
-    Alert.alert(`Remove ${existing!.name}?`, 'It and its schedule come off the list. Past log entries stay in the data file.', [
+    Alert.alert(`Remove ${displayName(existing!)}?`, 'It and its schedule come off the list. Past log entries stay in the data file.', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Remove',
@@ -86,7 +86,7 @@ export default function EditItem() {
 
   return (
     <FormScroll contentContainerStyle={styles.wrap}>
-      <Stack.Screen options={{ title: isNew ? 'Add item' : `Edit ${existing!.name}` }} />
+      <Stack.Screen options={{ title: isNew ? 'Add item' : `Edit ${displayName(existing!)}` }} />
       {err && (
         <Banner tone="warn">
           <Text style={text.body}>{err}</Text>
@@ -169,7 +169,7 @@ export default function EditItem() {
       <Button label={busy ? 'Saving…' : 'Save'} onPress={save} disabled={busy} style={{ marginTop: 8 }} />
       {!isNew && (
         <Text style={{ color: colors.danger, fontSize: 15, textAlign: 'center', marginTop: 8 }} onPress={remove}>
-          Remove {existing!.name}
+          Remove {displayName(existing!)}
         </Text>
       )}
     </FormScroll>

@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Banner, Button, Chip, Field, FormScroll, Row, colors, text } from '../components/ui';
 import { addService, deleteService, updateService, useSheet } from '../lib/api';
-import { formatDate, formatReading, isISODate, parseNumber, toISODate } from '../lib/format';
+import { displayName, formatDate, formatReading, isISODate, parseNumber, toISODate } from '../lib/format';
 
 const OTHER = 'Repair / other…';
 
@@ -78,7 +78,7 @@ export default function AddService() {
         {items.map((i) => (
           <Chip
             key={i.name}
-            label={i.name}
+            label={displayName(i)}
             selected={item === i.name}
             onPress={() => {
               setItem(i.name);

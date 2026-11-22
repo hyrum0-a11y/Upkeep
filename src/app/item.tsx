@@ -9,6 +9,7 @@ import {
   formatDate,
   formatReading,
   interval,
+  displayName,
   itemIcon,
   itemTitle,
   meterLabel,
@@ -177,7 +178,7 @@ export default function ItemScreen() {
     <FormScroll contentContainerStyle={styles.wrap} refreshControl={<RefreshControl refreshing={loading} onRefresh={refresh} />}>
       <Stack.Screen
         options={{
-          title: `${itemIcon(it)} ${title || it.name}`,
+          title: `${itemIcon(it)} ${displayName(it)}`,
           headerRight: () => (
             <Pressable
               onPress={() => router.push({ pathname: '/edit', params: { name: it.name } })}
