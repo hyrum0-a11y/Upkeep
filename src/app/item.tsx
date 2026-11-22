@@ -135,7 +135,7 @@ export default function ItemScreen() {
             {nextDue(s, m) ? `Next: ${nextDue(s, m)}` : interval(s, m).replace(/^every/, 'Every')}
           </Text>
         </View>
-        <StatusPill status={s.status} />
+        {(s.status === 'Overdue' || s.status === 'Due soon') && <StatusPill status={s.status} />}
         <Text style={styles.chevron}>{open === s.service ? '⌃' : '⌄'}</Text>
       </Pressable>
       {open === s.service && (
