@@ -190,6 +190,7 @@ export function itemIcon(it: Item): string {
     return '🚗';
   }
   if (/water|filter|fridge|refrigerator/.test(s)) return '💧';
+  if (/fireplace|gas log|stove/.test(s)) return '🔥';
   if (/furnace|hvac|heat|air/.test(s)) return '🌡️';
   if (/mower|lawn|yard/.test(s)) return '🌱';
   return '🔧';

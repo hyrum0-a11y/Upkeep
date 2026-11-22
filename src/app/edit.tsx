@@ -16,6 +16,7 @@ const PRESETS: Record<string, { service: string; every: number | null; everyMont
     { service: 'Brake fluid', every: null, everyMonths: 36, part: '' },
   ],
   Filter: [{ service: 'Filter change', every: null, everyMonths: 6, part: '' }],
+  Yearly: [{ service: 'Yearly inspection & cleaning', every: null, everyMonths: 12, part: '' }],
 };
 
 /** Add a new vehicle or piece of equipment, or edit one (?name=...). */
@@ -123,13 +124,13 @@ export default function EditItem() {
 
       <Row>
         <View style={{ flex: 1 }}>
-          <Field label="Year" value={f.year} onChangeText={(v) => set({ year: v })} keyboardType="number-pad" />
+          <Field label="Year (optional)" value={f.year} onChangeText={(v) => set({ year: v })} keyboardType="number-pad" />
         </View>
         <View style={{ flex: 2 }}>
-          <Field label="Make" value={f.make} onChangeText={(v) => set({ make: v })} />
+          <Field label="Make (optional)" value={f.make} onChangeText={(v) => set({ make: v })} />
         </View>
       </Row>
-      <Field label="Model" value={f.model} onChangeText={(v) => set({ model: v })} />
+      <Field label="Model (optional)" value={f.model} onChangeText={(v) => set({ model: v })} />
       {f.type === 'Vehicle' || f.vin ? (
         <Field label="VIN (optional)" value={f.vin} onChangeText={(v) => set({ vin: v.replace(/\s/g, '').toUpperCase() })} caps />
       ) : null}
@@ -155,6 +156,7 @@ export default function EditItem() {
             {[
               ['Vehicle', 'Basic vehicle'],
               ['Filter', 'Filter every 6 months'],
+              ['Yearly', 'Yearly service'],
               ['None', 'None'],
             ].map(([k, label]) => (
               <Chip key={k} label={label} selected={preset === k} onPress={() => setPreset(k)} />
