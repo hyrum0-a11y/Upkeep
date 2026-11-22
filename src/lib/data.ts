@@ -69,7 +69,7 @@ const SCHEDULE_KEYS = ['item', 'service', 'every', 'everyMonths', 'part'];
 const LOG_KEYS = ['id', 'date', 'item', 'reading', 'service', 'cost', 'shop', 'notes', 'entered', 'troubleshooting', 'kind'];
 const READING_KEYS = ['id', 'item', 'date', 'reading'];
 
-/** Policy fields, only when present so other items stay lean. */
+/** Bill fields (company, account #, agent…), only when present so other items stay lean. */
 function policyFields(r: Obj) {
   const out: { company?: string; policyNumber?: string; agent?: string; phone?: string; covers?: string[] } = {};
   for (const k of ['company', 'policyNumber', 'agent', 'phone'] as const) if (str(r[k])) out[k] = str(r[k]);

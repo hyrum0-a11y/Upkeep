@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Alert, StyleSheet, Text, View } from 'react-native';
 import { Banner, Button, Chip, Field, FormScroll, Row, colors, text } from '../components/ui';
 import { deleteItem, saveItem, useSheet } from '../lib/api';
-import { displayName, isISODate, isVehicle, nameFor, type Item, type Meter } from '../lib/format';
+import { displayName, isBill, isISODate, isVehicle, nameFor, type Item, type Meter } from '../lib/format';
 
 // Quick starting schedules for new things; edit or remove them afterwards on the item page.
 const PRESETS: Record<string, { service: string; every: number | null; everyMonths: number | null; part: string }[]> = {
@@ -17,22 +17,23 @@ const PRESETS: Record<string, { service: string; every: number | null; everyMont
   ],
   Filter: [{ service: 'Filter change', every: null, everyMonths: 6, part: '' }],
   Yearly: [{ service: 'Yearly inspection & cleaning', every: null, everyMonths: 12, part: '' }],
-  Policy: [{ service: 'Policy renewal', every: null, everyMonths: 12, part: '' }],
+  Bill: [{ service: 'Renewal', every: null, everyMonths: 12, part: '' }],
 };
 
-/** Add a new vehicle or piece of equipment, or edit one (?name=...). */
+/** Add a new vehicle, piece of equipment or bill (?type=… picks the starting type), or edit one (?name=...). */
 export default function EditItem() {
-  const { name } = useLocalSearchParams<{ name?: string }>();
+  const { name, type: startType } = useLocalSearchParams<{ name?: string; type?: string }>();
   const { data } = useSheet();
   const existing = name ? data?.items.find((i) => i.name === name) : undefined;
+  const startT = startType === 'Bill' || startType === 'Equipment' ? startType : 'Vehicle';
   const [f, setF] = useState<Item>(
     existing ?? {
       name: '',
-      type: 'Vehicle',
+      type: startT,
       year: '',
       make: '',
       model: '',
-      meter: 'miles',
+      meter: startT === 'Vehicle' ? 'miles' : '',
       reading: null,
       readingUpdated: '',
       purchased: '',
@@ -40,12 +41,12 @@ export default function EditItem() {
       notes: '',
     },
   );
-  const [preset, setPreset] = useState<string>('Vehicle');
+  const [preset, setPreset] = useState<string>(startT === 'Equipment' ? 'Filter' : startT);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const set = (patch: Partial<Item>) => setF({ ...f, ...patch });
   const isNew = !existing;
-  const policy = f.type === 'Policy';
+  const policy = isBill(f);
 
   if (name && !existing) return <Text style={[text.muted, { padding: 16 }]}>{data ? 'Not found.' : 'Loading…'}</Text>;
 
@@ -98,19 +99,19 @@ export default function EditItem() {
         label="Short name"
         value={f.name}
         onChangeText={(v) => set({ name: v })}
-        placeholder={policy ? 'e.g. Auto insurance' : 'e.g. Sentra, Fridge filter'}
+        placeholder={policy ? 'e.g. Erie Auto, Property tax' : 'e.g. Sentra, Fridge filter'}
       />
 
       <Text style={text.heading}>Type</Text>
       <Row style={styles.wrapRow}>
-        {['Vehicle', 'Equipment', 'Policy'].map((t) => (
+        {['Vehicle', 'Equipment', 'Bill'].map((t) => (
           <Chip
             key={t}
             label={t}
             selected={f.type === t}
             onPress={() => {
-              set({ type: t, meter: t === 'Vehicle' ? 'miles' : t === 'Policy' || f.meter === 'miles' ? '' : f.meter });
-              if (isNew) setPreset(t === 'Vehicle' ? 'Vehicle' : t === 'Policy' ? 'Policy' : 'Filter');
+              set({ type: t, meter: t === 'Vehicle' ? 'miles' : t === 'Bill' || f.meter === 'miles' ? '' : f.meter });
+              if (isNew) setPreset(t === 'Vehicle' ? 'Vehicle' : t === 'Bill' ? 'Bill' : 'Filter');
             }}
           />
         ))}
@@ -118,11 +119,21 @@ export default function EditItem() {
 
       {policy ? (
         <>
-          <Field label="Company" value={f.company ?? ''} onChangeText={(v) => set({ company: v })} placeholder="e.g. Erie Insurance" />
-          <Field label="Policy number" value={f.policyNumber ?? ''} onChangeText={(v) => set({ policyNumber: v.trim() })} caps />
+          <Field
+            label="Company (optional)"
+            value={f.company ?? ''}
+            onChangeText={(v) => set({ company: v })}
+            placeholder="e.g. Erie Insurance"
+          />
+          <Field
+            label="Policy / account # (optional)"
+            value={f.policyNumber ?? ''}
+            onChangeText={(v) => set({ policyNumber: v.trim() })}
+            caps
+          />
           <Field label="Agent (optional)" value={f.agent ?? ''} onChangeText={(v) => set({ agent: v })} />
           <Field label="Agent phone (optional)" value={f.phone ?? ''} onChangeText={(v) => set({ phone: v })} keyboardType="phone-pad" />
-          <Text style={text.heading}>Covers</Text>
+          <Text style={text.heading}>Covers (optional)</Text>
           <Row style={styles.wrapRow}>
             {(data?.items ?? []).filter(isVehicle).map((v) => (
               <Chip
@@ -200,7 +211,7 @@ export default function EditItem() {
               ['Vehicle', 'Basic vehicle'],
               ['Filter', 'Filter every 6 months'],
               ['Yearly', 'Yearly service'],
-              ['Policy', 'Yearly renewal'],
+              ['Bill', 'Yearly renewal'],
               ['None', 'None'],
             ].map(([k, label]) => (
               <Chip key={k} label={label} selected={preset === k} onPress={() => setPreset(k)} />

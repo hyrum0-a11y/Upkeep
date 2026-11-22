@@ -3,30 +3,28 @@ import { RefreshControl, ScrollView, StyleSheet, Text } from 'react-native';
 import { ItemRow } from '../components/ItemRow';
 import { Button, text } from '../components/ui';
 import { refresh, useSheet } from '../lib/api';
-import { isPolicy, isVehicle } from '../lib/format';
+import { isBill, isVehicle } from '../lib/format';
 
-/** All vehicles (?type=Vehicle) or all equipment (?type=Equipment). */
+/** All vehicles (?type=Vehicle), equipment (?type=Equipment) or bills (?type=Bill). */
 export default function ListScreen() {
   const { type } = useLocalSearchParams<{ type?: string }>();
   const { data, loading } = useSheet();
   const vehicles = type === 'Vehicle';
-  const items = data ? data.items.filter((i) => !isPolicy(i) && isVehicle(i) === vehicles) : [];
-  // Insurance and other policies live with the vehicles.
-  const policies = data && vehicles ? data.items.filter(isPolicy) : [];
+  const bills = type === 'Bill';
+  const items = data ? data.items.filter((i) => (bills ? isBill(i) : !isBill(i) && isVehicle(i) === vehicles)) : [];
   return (
     <ScrollView contentContainerStyle={styles.wrap} refreshControl={<RefreshControl refreshing={loading} onRefresh={refresh} />}>
-      <Stack.Screen options={{ title: vehicles ? 'Vehicles' : 'Equipment' }} />
+      <Stack.Screen options={{ title: bills ? 'Bills' : vehicles ? 'Vehicles' : 'Equipment' }} />
       {data && items.length === 0 && <Text style={text.muted}>Nothing here yet.</Text>}
       {data &&
         items.map((it) => (
           <ItemRow key={it.name} it={it} data={data} onPress={() => router.push({ pathname: '/item', params: { name: it.name } })} />
         ))}
-      {data && policies.length > 0 && <Text style={text.heading}>Policies</Text>}
-      {data &&
-        policies.map((it) => (
-          <ItemRow key={it.name} it={it} data={data} onPress={() => router.push({ pathname: '/item', params: { name: it.name } })} />
-        ))}
-      <Button label={vehicles ? '＋ Add a vehicle or policy' : '＋ Add equipment'} variant="outline" onPress={() => router.push('/edit')} />
+      <Button
+        label={bills ? '＋ Add a bill' : vehicles ? '＋ Add a vehicle' : '＋ Add equipment'}
+        variant="outline"
+        onPress={() => router.push({ pathname: '/edit', params: { type: bills ? 'Bill' : vehicles ? 'Vehicle' : 'Equipment' } })}
+      />
     </ScrollView>
   );
 }

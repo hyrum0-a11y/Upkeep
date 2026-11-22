@@ -12,8 +12,8 @@ import {
   interval,
   displayName,
   itemIcon,
-  isPolicy,
-  policiesFor,
+  isBill,
+  billsFor,
   nameFor,
   itemTitle,
   meterLabel,
@@ -193,7 +193,7 @@ export default function ItemScreen() {
         <Text style={text.muted}>{[it.plate && `Plate ${it.plate}`, it.vin && `VIN ${it.vin}`].filter(Boolean).join(' · ')}</Text>
       ) : null}
 
-      {policiesFor(it.name, data).map((p) => (
+      {billsFor(it.name, data).map((p) => (
         <Text
           key={p.name}
           style={text.muted}
@@ -211,14 +211,14 @@ export default function ItemScreen() {
         </Banner>
       )}
 
-      {isPolicy(it) && (
+      {isBill(it) && (
         <>
-          <Text style={text.heading}>Policy</Text>
+          <Text style={text.heading}>Details</Text>
           <Card style={{ gap: 4 }}>
             {(
               [
                 ['Company', it.company],
-                ['Policy #', it.policyNumber],
+                ['Policy / account #', it.policyNumber],
                 ['Agent', it.agent],
               ] as const
             )

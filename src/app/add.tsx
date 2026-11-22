@@ -11,7 +11,7 @@ import {
   formatReading,
   isFeeName,
   isISODate,
-  isPolicy,
+  isBill,
   kindOf,
   parseNumber,
   toISODate,
@@ -34,7 +34,7 @@ export default function AddService() {
       ? kindOf(old, data)
       : params.repair
         ? 'Repair'
-        : (params.service && isFeeName(params.service)) || items.some((i) => i.name === params.item && isPolicy(i))
+        : (params.service && isFeeName(params.service)) || items.some((i) => i.name === params.item && isBill(i))
           ? 'Fee'
           : 'Service',
   );
@@ -42,8 +42,12 @@ export default function AddService() {
   const choicesFor = (it: string, k: Kind) => {
     const sched = data ? data.schedule.filter((s) => s.item === it).map((s) => s.service) : [];
     if (k === 'Repair') return [];
-    if (k === 'Service') return sched.filter((n) => !isFeeName(n));
-    return [...sched.filter(isFeeName), ...FEE_NAMES.filter((n) => !sched.some((x) => x.toLowerCase() === n.toLowerCase()))];
+    const bill = items.some((i) => i.name === it && isBill(i));
+    if (k === 'Service') return bill ? [] : sched.filter((n) => !isFeeName(n));
+    return [
+      ...(bill ? sched : sched.filter(isFeeName)),
+      ...FEE_NAMES.filter((n) => !sched.some((x) => x.toLowerCase() === n.toLowerCase())),
+    ];
   };
   const startName = old?.service ?? params.service ?? '';
   const startChips = choicesFor(old?.item ?? params.item ?? '', kind);

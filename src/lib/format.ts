@@ -17,12 +17,12 @@ export type Item = {
   purchased: string; // yyyy-MM-dd or ''
   vin: string;
   plate?: string; // license plate
-  // Policies (type "Policy"): insurance and the like. One policy can cover several items.
+  // Bills (type "Bill"): insurance, property tax, HOA… Household expenses; a bill can list the vehicles it covers.
   company?: string;
-  policyNumber?: string;
+  policyNumber?: string; // policy or account number
   agent?: string;
   phone?: string;
-  covers?: string[]; // item names this policy covers
+  covers?: string[]; // item names this bill covers (e.g. auto insurance → vehicles)
 };
 
 export type ServiceEntry = {
@@ -85,9 +85,9 @@ export function perMonth(item: string, data: SheetData): number | null {
 }
 
 export const isVehicle = (it: Item) => it.type.toLowerCase() === 'vehicle';
-export const isPolicy = (it: Item) => it.type.toLowerCase() === 'policy';
-/** Policies that list this item under covers. */
-export const policiesFor = (name: string, data: { items: Item[] }) => data.items.filter((p) => isPolicy(p) && p.covers?.includes(name));
+export const isBill = (it: Item) => /^(bill|policy)$/i.test(it.type);
+/** Bills that list this item under covers. */
+export const billsFor = (name: string, data: { items: Item[] }) => data.items.filter((p) => isBill(p) && p.covers?.includes(name));
 
 /** "Odometer" / "Hour meter" for the reading's label. */
 export function meterLabel(m: Meter): string {
@@ -202,7 +202,14 @@ export function itemTitle(it: Item): string {
 /** A simple icon for an item, guessed from its type and name. */
 export function itemIcon(it: Item): string {
   const s = `${it.name} ${it.make} ${it.model}`.toLowerCase();
-  if (isPolicy(it)) return '🛡️';
+  if (isBill(it)) {
+    const b = `${s} ${it.company ?? ''}`;
+    if (/insurance|policy/.test(b) && /home|house|property/.test(b)) return '🏠';
+    if (/insurance|policy/.test(b)) return '🛡️';
+    if (/tax/.test(b)) return '🏛️';
+    if (/hoa|association/.test(b)) return '🏘️';
+    return '🧾';
+  }
   if (isVehicle(it)) {
     if (/silverado|truck|pickup|f-?150|ram|tacoma|tundra|sierra/.test(s)) return '🛻';
     if (/odyssey|van|sienna|caravan|pacifica/.test(s)) return '🚐';
@@ -234,6 +241,7 @@ export const isFeeName = (name: string) =>
 export function kindOf(e: ServiceEntry, data: SheetData): Kind {
   if (e.kind) return e.kind;
   if (isFeeName(e.service)) return 'Fee';
+  if (data.items.some((i) => i.name === e.item && isBill(i))) return 'Fee';
   if (e.troubleshooting) return 'Repair';
   return data.schedule.some((s) => s.item === e.item && s.service === e.service) ? 'Service' : 'Repair';
 }
