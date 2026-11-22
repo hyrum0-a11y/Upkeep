@@ -16,6 +16,7 @@ export type Item = {
   notes: string;
   purchased: string; // yyyy-MM-dd or ''
   vin: string;
+  plate?: string; // license plate
 };
 
 export type ServiceEntry = {

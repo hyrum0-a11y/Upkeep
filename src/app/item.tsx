@@ -186,7 +186,9 @@ export default function ItemScreen() {
           ),
         }}
       />
-      {it.vin ? <Text style={text.muted}>VIN {it.vin}</Text> : null}
+      {it.vin || it.plate ? (
+        <Text style={text.muted}>{[it.plate && `Plate ${it.plate}`, it.vin && `VIN ${it.vin}`].filter(Boolean).join(' · ')}</Text>
+      ) : null}
 
       {(msg || error) && (
         <Banner tone="warn">

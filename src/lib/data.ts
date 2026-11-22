@@ -44,6 +44,12 @@ const meter = (v: unknown): Meter => {
 };
 type Obj = Record<string, unknown>;
 const list = (v: unknown): Obj[] => (Array.isArray(v) ? (v.filter((x) => x && typeof x === 'object') as Obj[]) : []);
+/** Fields this version doesn't know about, kept so saving from the app never erases data added by hand or by a newer version. */
+const extras = (r: Obj, known: string[]): Obj => Object.fromEntries(Object.entries(r).filter(([k]) => !known.includes(k)));
+const ITEM_KEYS = ['name', 'type', 'year', 'make', 'model', 'meter', 'reading', 'readingUpdated', 'purchased', 'vin', 'plate', 'notes'];
+const SCHEDULE_KEYS = ['item', 'service', 'every', 'everyMonths', 'part'];
+const LOG_KEYS = ['id', 'date', 'item', 'reading', 'service', 'cost', 'shop', 'notes', 'entered', 'troubleshooting', 'kind'];
+const READING_KEYS = ['id', 'item', 'date', 'reading'];
 
 /** Parse upkeep.json, tolerating hand edits (missing fields, numbers typed as text). */
 export function parseStore(json: string): Store {
@@ -57,6 +63,7 @@ export function parseStore(json: string): Store {
     version: 1,
     items: list(raw.items)
       .map((r) => ({
+        ...extras(r, ITEM_KEYS),
         name: str(r.name),
         type: str(r.type) || 'Equipment',
         year: str(r.year),
@@ -67,14 +74,23 @@ export function parseStore(json: string): Store {
         readingUpdated: str(r.readingUpdated),
         purchased: str(r.purchased),
         vin: str(r.vin),
+        plate: str(r.plate),
         notes: str(r.notes),
       }))
       .filter((i) => i.name),
     schedule: list(raw.schedule)
-      .map((r) => ({ item: str(r.item), service: str(r.service), every: num(r.every), everyMonths: num(r.everyMonths), part: str(r.part) }))
+      .map((r) => ({
+        ...extras(r, SCHEDULE_KEYS),
+        item: str(r.item),
+        service: str(r.service),
+        every: num(r.every),
+        everyMonths: num(r.everyMonths),
+        part: str(r.part),
+      }))
       .filter((s) => s.item && s.service),
     log: list(raw.log)
       .map((r) => ({
+        ...extras(r, LOG_KEYS),
         id: str(r.id),
         date: str(r.date),
         item: str(r.item),
@@ -89,7 +105,7 @@ export function parseStore(json: string): Store {
       }))
       .filter((e) => e.item && e.service),
     readings: list(raw.readings)
-      .map((r) => ({ id: str(r.id), item: str(r.item), date: str(r.date), reading: num(r.reading) }))
+      .map((r) => ({ ...extras(r, READING_KEYS), id: str(r.id), item: str(r.item), date: str(r.date), reading: num(r.reading) }))
       .filter((r): r is Reading => !!(r.item && r.date && r.reading !== null)),
   };
   // An item's current reading should always appear in its history so it can be fixed later.

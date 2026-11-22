@@ -131,8 +131,16 @@ export default function EditItem() {
         </View>
       </Row>
       <Field label="Model (optional)" value={f.model} onChangeText={(v) => set({ model: v })} />
-      {f.type === 'Vehicle' || f.vin ? (
-        <Field label="VIN (optional)" value={f.vin} onChangeText={(v) => set({ vin: v.replace(/\s/g, '').toUpperCase() })} caps />
+      {f.type === 'Vehicle' || f.vin || f.plate ? (
+        <>
+          <Field label="VIN (optional)" value={f.vin} onChangeText={(v) => set({ vin: v.replace(/\s/g, '').toUpperCase() })} caps />
+          <Field
+            label="License plate (optional)"
+            value={f.plate ?? ''}
+            onChangeText={(v) => set({ plate: v.replace(/\s/g, '').toUpperCase() })}
+            caps
+          />
+        </>
       ) : null}
       <Field
         label="Purchase date (optional)"

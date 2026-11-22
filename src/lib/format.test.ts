@@ -397,3 +397,21 @@ test('mileage chart data', () => {
   assert.equal(c.markers[0].reading, 196000);
   assert.equal(mileageChart('Odyssey', d, '').points.length, 3);
 });
+
+test('plate parses and unknown fields survive a save', () => {
+  const s = D.parseStore(
+    JSON.stringify({
+      items: [{ name: 'Van', plate: 'E1Y386', color: 'blue' }],
+      schedule: [{ item: 'Van', service: 'Oil', everyMonths: 6, source: 'manual' }],
+      log: [{ id: 'x', item: 'Van', service: 'Oil', date: '2026-01-01', receipt: 'r1' }],
+      readings: [{ id: 'r', item: 'Van', date: '2026-01-01', reading: 5, photo: 'p' }],
+    }),
+  );
+  assert.equal(s.items[0].plate, 'E1Y386');
+  const back = JSON.parse(D.serializeStore(s));
+  assert.equal(back.items[0].color, 'blue');
+  assert.equal(back.items[0].plate, 'E1Y386');
+  assert.equal(back.schedule[0].source, 'manual');
+  assert.equal(back.log[0].receipt, 'r1');
+  assert.equal(back.readings[0].photo, 'p');
+});
