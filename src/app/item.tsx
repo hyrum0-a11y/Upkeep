@@ -3,7 +3,17 @@ import { useState } from 'react';
 import { Alert, Linking, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { Banner, Button, Card, Field, FormScroll, Row, StatusPill, colors, text } from '../components/ui';
 import { MileageChart } from '../components/MileageChart';
-import { deleteReading, deleteSchedule, refresh, saveSchedule, setReading, updateReading, updateService, useSheet } from '../lib/api';
+import {
+  deleteReading,
+  deleteSchedule,
+  refresh,
+  saveSchedule,
+  setReading,
+  updateFuel,
+  updateReading,
+  updateService,
+  useSheet,
+} from '../lib/api';
 import {
   byUrgency,
   formatCost,
@@ -12,6 +22,8 @@ import {
   interval,
   displayName,
   itemIcon,
+  fuelStats,
+  isVehicle,
   isBill,
   billsFor,
   nameFor,
@@ -66,6 +78,7 @@ export default function ItemScreen() {
     (sum.next.status === 'Overdue' || sum.next.status === 'Due soon' || (!!sum.next.nextDate && sum.next.nextDate <= monthOut));
   const readings = readingHistory(it.name, data);
   const usage = perMonth(it.name, data);
+  const fuel = isVehicle(it) ? fuelStats(it.name, data) : null;
   const title = itemTitle(it);
 
   async function run(fn: () => Promise<unknown>, done?: () => void) {
@@ -324,11 +337,23 @@ export default function ItemScreen() {
                         busy={busy}
                         onCancel={() => setEditingReading(null)}
                         service={r.service}
-                        onOpenService={r.entryId ? () => router.push({ pathname: '/add', params: { id: r.entryId! } }) : undefined}
+                        onOpenService={
+                          r.entryId
+                            ? () => router.push({ pathname: '/add', params: { id: r.entryId! } })
+                            : r.fuelId
+                              ? () => router.push({ pathname: '/fuel', params: { id: r.fuelId! } })
+                              : undefined
+                        }
                         onSave={(value, date) =>
                           run(
                             () => {
                               if (!r.service) return updateReading(r.id, value, date);
+                              if (r.fuelId) {
+                                const f = data.fuel?.find((x) => x.id === r.fuelId);
+                                if (!f) throw new Error('That fill-up is gone. Pull to refresh.');
+                                const { id: _fid, ...frest } = f;
+                                return updateFuel(f.id, { ...frest, reading: value });
+                              }
                               const e = data.log.find((x) => x.id === r.entryId);
                               if (!e) throw new Error('That service entry is gone. Pull to refresh.');
                               const { id: _id, ...rest } = e;
@@ -360,7 +385,12 @@ export default function ItemScreen() {
                       >
                         <Text style={text.body}>
                           {formatReading(r.reading, m)}
-                          {r.service ? <Text style={text.muted}> · 🔧 {r.service}</Text> : null}
+                          {r.service ? (
+                            <Text style={text.muted}>
+                              {' '}
+                              · {r.fuelId ? '⛽' : '🔧'} {r.service}
+                            </Text>
+                          ) : null}
                         </Text>
                         <Text style={text.muted}>{formatDate(r.date)} ✎</Text>
                       </Pressable>
@@ -372,7 +402,7 @@ export default function ItemScreen() {
                     </Text>
                   )}
                   <Text style={text.muted}>
-                    Tap a reading to fix it. 🔧 readings come from service entries; fixing one updates that entry.
+                    Tap a reading to fix it. 🔧 and ⛽ readings come from service entries and fill-ups; fixing one updates that entry.
                   </Text>
                 </>
               )}
@@ -381,7 +411,48 @@ export default function ItemScreen() {
         </Card>
       ) : null}
 
-      <Button label="＋ Log service, repair or fee" onPress={() => router.push({ pathname: '/add', params: { item: it.name } })} />
+      {fuel && (
+        <>
+          <Text style={text.heading}>Fuel</Text>
+          <Card style={{ gap: 4 }}>
+            {(
+              [
+                [
+                  'Last fill-up',
+                  `${formatDate(fuel.last.date)} · ${fuel.last.gallons} gal${fuel.last.cost ? ` · ${formatCost(fuel.last.cost)}` : ''}`,
+                ],
+                ['Average MPG', fuel.mpg !== null ? fuel.mpg.toFixed(1) : '—'],
+                ['Price / gal', fuel.price !== null ? formatCost(fuel.price) : '—'],
+                ['Spend / month', fuel.perMonth !== null ? formatCost(fuel.perMonth) : '—'],
+              ] as const
+            ).map(([k, v]) => (
+              <Row key={k} style={{ justifyContent: 'space-between' }}>
+                <Text style={text.muted}>{k}</Text>
+                <Text style={text.body}>{v}</Text>
+              </Row>
+            ))}
+            {fuel.mpg === null && <Text style={text.muted}>MPG shows after two full fills with the odometer.</Text>}
+            <Text
+              style={{ color: colors.primary, fontSize: 15, marginTop: 4 }}
+              onPress={() => router.push({ pathname: '/fuellog', params: { item: it.name } })}
+            >
+              See all {fuel.count} fill-ups ›
+            </Text>
+          </Card>
+        </>
+      )}
+
+      <Row>
+        <Button label="＋ Log" onPress={() => router.push({ pathname: '/add', params: { item: it.name } })} style={{ flex: 1 }} />
+        {isVehicle(it) && (
+          <Button
+            label="⛽ Fuel"
+            variant="outline"
+            onPress={() => router.push({ pathname: '/fuel', params: { item: it.name } })}
+            style={{ flex: 1 }}
+          />
+        )}
+      </Row>
 
       <Text style={text.heading}>Schedule</Text>
       {schedule.length === 0 && <Text style={text.muted}>No scheduled services yet. Add one below.</Text>}

@@ -62,6 +62,18 @@ export type SheetData = {
   log: ServiceEntry[];
   schedule: ScheduleItem[];
   readings: Reading[];
+  fuel?: FuelEntry[];
+};
+
+/** One fill-up. Kept apart from the service log so it doesn't clutter history. */
+export type FuelEntry = {
+  id: string;
+  item: string;
+  date: string; // yyyy-mm-dd
+  gallons: number;
+  cost: number | null; // total paid
+  reading: number | null; // odometer, optional
+  full: boolean; // filled the tank (needed for MPG)
 };
 
 /**
@@ -72,6 +84,7 @@ export function perMonth(item: string, data: SheetData): number | null {
   const pts = [
     ...data.readings.filter((r) => r.item === item),
     ...data.log.filter((e) => e.item === item && e.reading !== null).map((e) => ({ date: e.date, reading: e.reading as number })),
+    ...(data.fuel ?? []).filter((f) => f.item === item && f.reading !== null).map((f) => ({ date: f.date, reading: f.reading as number })),
   ].sort((a, b) => a.date.localeCompare(b.date));
   if (pts.length < 2) return null;
   const last = pts[pts.length - 1];
@@ -246,18 +259,19 @@ export function kindOf(e: ServiceEntry, data: SheetData): Kind {
   return data.schedule.some((s) => s.item === e.item && s.service === e.service) ? 'Service' : 'Repair';
 }
 
-export type KindTotals = { total: number; service: number; repair: number; fee: number };
+export type KindTotals = { total: number; service: number; repair: number; fee: number; fuel: number };
 const KEY = { Service: 'service', Repair: 'repair', Fee: 'fee' } as const;
 
 /** Spending grouped by year (newest first), with per-item and service/repair/fee totals. */
-export function spendingByYear(data: SheetData) {
+export function spendingByYear(data: SheetData, withFuel = false) {
   const years = new Map<string, KindTotals & { items: Map<string, KindTotals> }>();
-  for (const e of data.log) {
+  const rows: (ServiceEntry | FuelEntry)[] = [...data.log, ...(withFuel ? (data.fuel ?? []) : [])];
+  for (const e of rows) {
     if (!e.cost) continue;
     const y = e.date.slice(0, 4) || '—';
-    const yr = years.get(y) ?? { total: 0, service: 0, repair: 0, fee: 0, items: new Map() };
-    const it = yr.items.get(e.item) ?? { total: 0, service: 0, repair: 0, fee: 0 };
-    const k = KEY[kindOf(e, data)];
+    const yr = years.get(y) ?? { total: 0, service: 0, repair: 0, fee: 0, fuel: 0, items: new Map() };
+    const it = yr.items.get(e.item) ?? { total: 0, service: 0, repair: 0, fee: 0, fuel: 0 };
+    const k = 'service' in e ? KEY[kindOf(e as ServiceEntry, data)] : 'fuel';
     yr.total += e.cost;
     yr[k] += e.cost;
     it.total += e.cost;
@@ -273,6 +287,7 @@ export function spendingByYear(data: SheetData) {
       service: v.service,
       repair: v.repair,
       fee: v.fee,
+      fuel: v.fuel,
       items: [...v.items.entries()].map(([item, t]) => ({ item, ...t })).sort((a, b) => b.total - a.total),
     }));
 }
@@ -308,7 +323,7 @@ export function monthlySpending(data: SheetData, months: number, today: string =
 }
 
 /** A row in an item's reading history: a manual reading, or the mileage recorded on a service entry. */
-export type HistoryReading = { id: string; date: string; reading: number; service?: string; entryId?: string };
+export type HistoryReading = { id: string; date: string; reading: number; service?: string; entryId?: string; fuelId?: string };
 
 /** Manual readings plus service mileages for an item, newest first. A service reading that matches a manual one (same date and value) is left out. */
 export function readingHistory(item: string, data: SheetData): HistoryReading[] {
@@ -322,7 +337,55 @@ export function readingHistory(item: string, data: SheetData): HistoryReading[] 
       service: e.service,
       entryId: e.id,
     }));
-  return [...manual, ...fromLog].sort((a, b) => b.date.localeCompare(a.date) || b.reading - a.reading);
+  const seen = [...manual, ...fromLog];
+  const fromFuel: HistoryReading[] = (data.fuel ?? [])
+    .filter((f) => f.item === item && f.reading !== null && !seen.some((r) => r.date === f.date && r.reading === f.reading))
+    .map((f) => ({ id: `fuel-${f.id}`, date: f.date, reading: f.reading as number, service: 'Fill-up', fuelId: f.id }));
+  return [...seen, ...fromFuel].sort((a, b) => b.date.localeCompare(a.date) || b.reading - a.reading);
+}
+
+/** An item's fill-ups, newest first. */
+export const fuelFor = (item: string, data: SheetData) =>
+  (data.fuel ?? []).filter((f) => f.item === item).sort((a, b) => b.date.localeCompare(a.date) || (b.reading ?? 0) - (a.reading ?? 0));
+
+/**
+ * Fuel summary: last fill-up, average MPG, last price per gallon, spend per month (last 12 months).
+ * MPG uses stretches between full-tank fills that both have mileage; gallons from partial fills in between count.
+ */
+export function fuelStats(item: string, data: SheetData, today: string = toISODate(new Date())) {
+  const fills = fuelFor(item, data).reverse();
+  if (!fills.length) return null;
+  let miles = 0;
+  let gallons = 0;
+  let anchor: FuelEntry | null = null;
+  let pending = 0;
+  for (const f of fills) {
+    if (anchor) pending += f.gallons;
+    if (!f.full) continue;
+    if (f.reading === null) {
+      anchor = null; // can't measure across a full fill with no mileage
+      continue;
+    }
+    if (anchor && f.reading > (anchor.reading as number)) {
+      miles += f.reading - (anchor.reading as number);
+      gallons += pending;
+    }
+    anchor = f;
+    pending = 0;
+  }
+  const last = fills[fills.length - 1];
+  const priced = [...fills].reverse().find((f) => f.cost && f.gallons);
+  const yearAgo = toISODate(new Date(Date.parse(today) - 365 * 86_400_000));
+  const recent = fills.filter((f) => f.date >= yearAgo);
+  const spent = recent.reduce((t, f) => t + (f.cost ?? 0), 0);
+  const months = recent.length ? Math.max(1, (Date.parse(today) - Date.parse(recent[0].date)) / (30.44 * 86_400_000)) : 1;
+  return {
+    count: fills.length,
+    last,
+    mpg: gallons > 0 ? miles / gallons : null,
+    price: priced ? (priced.cost as number) / priced.gallons : null,
+    perMonth: recent.length ? spent / months : null,
+  };
 }
 
 /** Mileage on a date, interpolated between the nearest readings (clamped at the ends). */

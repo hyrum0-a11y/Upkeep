@@ -225,6 +225,18 @@ export function deleteSchedule(item: string, service: string) {
   return change(`Remove ${item} ${service}`, (s) => D.deleteSchedule(s, item, service));
 }
 
+export function addFuel(f: D.NewFuel) {
+  return change(`Fuel for ${f.item}`, (s) => D.addFuel(s, f, now()));
+}
+
+export function updateFuel(id: string, f: D.NewFuel) {
+  return change(`Edit fuel for ${f.item}`, (s) => D.updateFuel(s, id, f, now()));
+}
+
+export function deleteFuel(id: string) {
+  return change('Delete a fill-up', (s) => D.deleteFuel(s, id));
+}
+
 export function markConfigured() {
   set({ configured: true });
 }

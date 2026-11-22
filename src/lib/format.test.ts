@@ -14,6 +14,7 @@ import {
   monthlySpending,
   nameFor,
   isFeeName,
+  fuelStats,
   billsFor,
   kindOf,
   newestFirst,
@@ -440,4 +441,29 @@ test('bills: fields parse, covers follow renames, entries are fees', () => {
   assert.deepEqual(s.items[1].covers, ['Odyssey']);
   s = D.deleteItem(s, 'Odyssey');
   assert.deepEqual(s.items[0].covers, []);
+});
+
+test('fuel: MPG between full fills, readings, spending toggle, round-trip', () => {
+  let s = D.parseStore(JSON.stringify({ items: [{ name: 'Van', type: 'Vehicle', meter: 'miles', reading: 1000 }] }));
+  const add = (date: string, gallons: number, cost: number, reading: number | null, full = true) =>
+    (s = D.addFuel(s, { item: 'Van', date, gallons, cost, reading, full }, `${date}T12:00:00Z`));
+  add('2026-01-01', 10, 30, 1000);
+  add('2026-01-10', 5, 15, null, false); // partial, no mileage
+  add('2026-01-20', 10, 32, 1450); // 450 mi on 15 gal = 30 mpg
+  add('2026-02-01', 9, 27, 1720); // 270 mi on 9 gal = 30 mpg
+  const c = D.compute(s, '2026-02-15');
+  const st = fuelStats('Van', c, '2026-02-15')!;
+  assert.equal(st.count, 4);
+  assert.equal(st.mpg, 30);
+  assert.equal(st.price, 3);
+  assert.equal(s.items[0].reading, 1720);
+  // the first fill matches the start reading (same date and mileage), so only 2 fuel rows are added
+  assert.equal(readingHistory('Van', c).filter((r) => r.fuelId).length, 2);
+  assert.equal(spendingByYear(c)[0]?.total ?? 0, 0);
+  assert.equal(spendingByYear(c, true)[0].fuel, 104);
+  const back = D.parseStore(D.serializeStore(s));
+  assert.equal(back.fuel.length, 4);
+  assert.equal(back.fuel[1].full, false);
+  s = D.deleteFuel(s, s.fuel[0].id);
+  assert.equal(s.fuel.length, 3);
 });

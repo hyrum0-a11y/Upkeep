@@ -1,7 +1,7 @@
 // The data file (upkeep.json in the private data repo) and everything worked out from it.
 // Plain TypeScript, no React Native imports, so it runs in unit tests.
 
-import type { Item, Kind, Meter, Reading, ScheduleItem, ServiceEntry, SheetData, Status } from './format';
+import type { FuelEntry, Item, Kind, Meter, Reading, ScheduleItem, ServiceEntry, SheetData, Status } from './format';
 
 export const DATA_FILE = 'upkeep.json';
 
@@ -16,16 +16,19 @@ export type StoredSchedule = {
 
 export type StoredEntry = ServiceEntry & { entered: string };
 
+export type StoredFuel = FuelEntry & { entered: string };
+
 export type Store = {
   version: 1;
   items: Item[];
   schedule: StoredSchedule[];
   log: StoredEntry[];
   readings: Reading[]; // mileage / hours history
+  fuel: StoredFuel[]; // fill-ups, kept apart from the service log
 };
 
 export function emptyStore(): Store {
-  return { version: 1, items: [], schedule: [], log: [], readings: [] };
+  return { version: 1, items: [], schedule: [], log: [], readings: [], fuel: [] };
 }
 
 // ---------- reading the file ----------
@@ -68,6 +71,7 @@ const ITEM_KEYS = [
 const SCHEDULE_KEYS = ['item', 'service', 'every', 'everyMonths', 'part'];
 const LOG_KEYS = ['id', 'date', 'item', 'reading', 'service', 'cost', 'shop', 'notes', 'entered', 'troubleshooting', 'kind'];
 const READING_KEYS = ['id', 'item', 'date', 'reading'];
+const FUEL_KEYS = ['id', 'item', 'date', 'gallons', 'cost', 'reading', 'full', 'entered'];
 
 /** Bill fields (company, account #, agent…), only when present so other items stay lean. */
 function policyFields(r: Obj) {
@@ -134,6 +138,19 @@ export function parseStore(json: string): Store {
     readings: list(raw.readings)
       .map((r) => ({ ...extras(r, READING_KEYS), id: str(r.id), item: str(r.item), date: str(r.date), reading: num(r.reading) }))
       .filter((r): r is Reading => !!(r.item && r.date && r.reading !== null)),
+    fuel: list(raw.fuel)
+      .map((r) => ({
+        ...extras(r, FUEL_KEYS),
+        id: str(r.id),
+        item: str(r.item),
+        date: str(r.date),
+        gallons: num(r.gallons) ?? 0,
+        cost: num(r.cost),
+        reading: num(r.reading),
+        full: r.full !== false,
+        entered: str(r.entered),
+      }))
+      .filter((f) => f.item && f.date),
   };
   // An item's current reading should always appear in its history so it can be fixed later.
   for (const it of store.items) {
@@ -152,7 +169,7 @@ export function parseStore(json: string): Store {
 /** Pretty JSON with one log entry per line, so GitHub diffs stay readable. */
 export function serializeStore(s: Store): string {
   const block = (rows: unknown[]) => (rows.length ? `[\n    ${rows.map((r) => JSON.stringify(r)).join(',\n    ')}\n  ]` : '[]');
-  return `{\n  "version": 1,\n  "items": ${block(s.items)},\n  "schedule": ${block(s.schedule)},\n  "log": ${block(s.log)},\n  "readings": ${block(s.readings)}\n}\n`;
+  return `{\n  "version": 1,\n  "items": ${block(s.items)},\n  "schedule": ${block(s.schedule)},\n  "log": ${block(s.log)},\n  "readings": ${block(s.readings)},\n  "fuel": ${block(s.fuel)}\n}\n`;
 }
 
 // ---------- due math ----------
@@ -200,7 +217,7 @@ export function compute(store: Store, today: string): SheetData {
       status = 'Due soon';
     return { ...s, lastDone, lastReading, nextDate, nextReading, status };
   });
-  return { items: store.items, log: store.log, schedule, readings: store.readings };
+  return { items: store.items, log: store.log, schedule, readings: store.readings, fuel: store.fuel };
 }
 
 // ---------- changes (each returns a new Store) ----------
@@ -294,7 +311,40 @@ export function saveItem(s: Store, item: Item, oldName?: string): Store {
     schedule: s.schedule.map(rename),
     log: s.log.map(rename),
     readings: s.readings.map(rename),
+    fuel: s.fuel.map(rename),
   };
+}
+
+export type NewFuel = Omit<FuelEntry, 'id'>;
+
+/** Moves the item's current reading forward when a fill-up's mileage is higher. */
+function bumpReading(s: Store, item: string, reading: number | null, now: string): Item[] {
+  return s.items.map((i) =>
+    i.name === item && reading !== null && (i.reading === null || reading > i.reading)
+      ? { ...i, reading, readingUpdated: now.slice(0, 10) }
+      : i,
+  );
+}
+
+function checkFuel(f: NewFuel) {
+  if (!f.item || !f.date) throw new Error('Vehicle and date are required.');
+  if (!(f.gallons > 0)) throw new Error('Gallons must be more than 0.');
+}
+
+export function addFuel(s: Store, f: NewFuel, now: string, id: () => string = newId): Store {
+  checkFuel(f);
+  return { ...s, items: bumpReading(s, f.item, f.reading, now), fuel: [...s.fuel, { ...f, id: id(), entered: now }] };
+}
+
+export function updateFuel(s: Store, id: string, f: NewFuel, now: string): Store {
+  checkFuel(f);
+  const old = s.fuel.find((x) => x.id === id);
+  if (!old) throw new Error('Fill-up not found. It may have been deleted.');
+  return { ...s, items: bumpReading(s, f.item, f.reading, now), fuel: s.fuel.map((x) => (x.id === id ? { ...old, ...f, id } : x)) };
+}
+
+export function deleteFuel(s: Store, id: string): Store {
+  return { ...s, fuel: s.fuel.filter((x) => x.id !== id) };
 }
 
 /** Remove an item and its schedule. Its log entries stay, so history isn't lost. */

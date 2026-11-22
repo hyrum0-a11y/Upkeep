@@ -42,7 +42,12 @@ export default function UsageScreen() {
                   <View key={r.id} style={styles.row}>
                     <Text style={text.body}>
                       {formatDate(r.date)}
-                      {r.service ? <Text style={text.muted}> · 🔧 {r.service}</Text> : null}
+                      {r.service ? (
+                        <Text style={text.muted}>
+                          {' '}
+                          · {r.fuelId ? '⛽' : '🔧'} {r.service}
+                        </Text>
+                      ) : null}
                     </Text>
                     <Text style={text.muted}>
                       {formatReading(r.reading, m)}
