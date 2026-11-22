@@ -15,6 +15,7 @@ import {
   nextDue,
   isISODate,
   parseNumber,
+  entryLabel,
   perMonth,
   toISODate,
   summarize,
@@ -52,6 +53,10 @@ export default function ItemScreen() {
   const neverLogged = schedule.filter((s) => s.status === 'No record');
   const history = newestFirst(data.log.filter((e) => e.item === it.name));
   const sum = summarize(it, data);
+  const monthOut = toISODate(new Date(Date.now() + 30 * 86_400_000));
+  const dueWithinMonth =
+    !!sum.next &&
+    (sum.next.status === 'Overdue' || sum.next.status === 'Due soon' || (!!sum.next.nextDate && sum.next.nextDate <= monthOut));
   const readings = data.readings.filter((r) => r.item === it.name).sort((a, b) => b.date.localeCompare(a.date));
   const usage = perMonth(it.name, data);
   const title = itemTitle(it);
@@ -145,7 +150,10 @@ export default function ItemScreen() {
                     onPress={e.id ? () => router.push({ pathname: '/add', params: { id: e.id } }) : undefined}
                     style={({ pressed }) => [styles.readingRow, pressed && { opacity: 0.6 }]}
                   >
-                    <Text style={text.body}>{formatDate(e.date)}</Text>
+                    <Text style={text.body}>
+                      {formatDate(e.date)}
+                      {e.troubleshooting ? ' *' : ''}
+                    </Text>
                     <Text style={text.muted}>
                       {[e.reading !== null && m && formatReading(e.reading, m), formatCost(e.cost)].filter(Boolean).join(' · ')}
                       {e.id ? '  ✎' : ''}
@@ -193,9 +201,9 @@ export default function ItemScreen() {
       <Card>
         <Text style={text.section}>Summary</Text>
         {it.purchased ? <Text style={text.body}>Purchased {formatDate(it.purchased)}</Text> : null}
-        {sum.next ? (
-          <Text style={text.body}>
-            Next: {sum.next.service}, {nextDue(sum.next, m)}
+        {dueWithinMonth ? (
+          <Text style={[text.body, { color: sum.next!.status === 'Overdue' ? colors.danger : colors.warn }]}>
+            {sum.next!.status === 'Overdue' ? 'Overdue' : 'Due soon'}: {sum.next!.service}, {nextDue(sum.next!, m)}
           </Text>
         ) : null}
         {sum.last ? (
@@ -383,6 +391,7 @@ export default function ItemScreen() {
 
       <Text style={text.section}>History</Text>
       {history.length === 0 && <Text style={text.muted}>Nothing logged yet.</Text>}
+      {history.some((e) => e.troubleshooting) && <Text style={text.muted}>* Done while troubleshooting, not because it was due.</Text>}
       {byYear(history).map(([year, entries]) => (
         <View key={year} style={{ gap: 8 }}>
           <Row style={{ justifyContent: 'space-between', marginTop: 4 }}>
@@ -395,7 +404,7 @@ export default function ItemScreen() {
               onPress={e.id ? () => router.push({ pathname: '/add', params: { id: e.id } }) : undefined}
             >
               <Row style={{ justifyContent: 'space-between' }}>
-                <Text style={[text.body, { fontWeight: '600', flex: 1 }]}>{e.service}</Text>
+                <Text style={[text.body, { fontWeight: '600', flex: 1 }]}>{entryLabel(e)}</Text>
                 <Text style={text.muted}>{formatDate(e.date)}</Text>
               </Row>
               <Text style={text.muted}>

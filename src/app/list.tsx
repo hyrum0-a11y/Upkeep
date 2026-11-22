@@ -25,5 +25,5 @@ export default function ListScreen() {
 }
 
 const styles = StyleSheet.create({
-  wrap: { padding: 16, gap: 12, paddingBottom: 40 },
+  wrap: { padding: 12, gap: 8, paddingBottom: 40 },
 });

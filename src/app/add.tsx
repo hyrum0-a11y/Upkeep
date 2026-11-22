@@ -1,6 +1,6 @@
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { Alert, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Banner, Button, Chip, Field, FormScroll, Row, colors, text } from '../components/ui';
 import { addService, deleteService, updateService, useSheet } from '../lib/api';
 import { formatDate, formatReading, isISODate, parseNumber, toISODate } from '../lib/format';
@@ -24,6 +24,7 @@ export default function AddService() {
   const [cost, setCost] = useState(old?.cost != null ? String(old.cost) : '');
   const [shop, setShop] = useState(old?.shop ?? '');
   const [notes, setNotes] = useState(old?.notes ?? '');
+  const [trouble, setTrouble] = useState(!!old?.troubleshooting);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -44,7 +45,16 @@ export default function AddService() {
     setBusy(true);
     setErr(null);
     try {
-      const entry = { item, date, reading: r, service: name, cost: c, shop: shop.trim(), notes: notes.trim() };
+      const entry = {
+        item,
+        date,
+        reading: r,
+        service: name,
+        cost: c,
+        shop: shop.trim(),
+        notes: notes.trim(),
+        ...(trouble && service !== OTHER ? { troubleshooting: true } : {}),
+      };
       await (old ? updateService(old.id, entry) : addService(entry));
       router.back();
     } catch (e) {
@@ -126,6 +136,20 @@ export default function AddService() {
         </View>
       </Row>
       <Field label="Notes" value={notes} onChangeText={setNotes} multiline placeholder="Parts, oil or filter type, anything to remember" />
+      {service && service !== OTHER ? (
+        <Pressable
+          onPress={() => setTrouble(!trouble)}
+          style={styles.check}
+          accessibilityRole="checkbox"
+          accessibilityState={{ checked: trouble }}
+        >
+          <Text style={{ fontSize: 22, color: trouble ? colors.primary : colors.muted }}>{trouble ? '☑' : '☐'}</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={text.body}>Done while troubleshooting</Text>
+            <Text style={text.muted}>Not because it was due. Still resets the schedule; shows with a * and counts as a repair.</Text>
+          </View>
+        </Pressable>
+      ) : null}
 
       <Button label={busy ? 'Saving…' : 'Save'} onPress={save} disabled={busy || (!!params.id && !old)} style={{ marginTop: 8 }} />
       {old && (
@@ -157,6 +181,7 @@ export default function AddService() {
 }
 
 const styles = StyleSheet.create({
+  check: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 4 },
   wrap: { padding: 16, gap: 12, paddingBottom: 40 },
   wrapRow: { flexWrap: 'wrap', gap: 8 },
 });

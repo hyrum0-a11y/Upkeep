@@ -9,11 +9,13 @@ import {
   isISODate,
   isVehicle,
   itemIcon,
+  entryLabel,
   itemTitle,
   kindOf,
   newestFirst,
   nextDue,
   parseNumber,
+  perMonth,
   spendingByYear,
   statusLine,
   summarize,
@@ -155,12 +157,13 @@ test('base64 handles UTF-8', () => {
 });
 
 test('formatting follows the meter', () => {
-  assert.equal(formatDate('2026-11-20'), 'Nov 20, 2026');
+  assert.equal(formatDate('2026-11-20'), '2026-11-20');
+  assert.equal(formatDate('2026-11-20T10:00:00Z'), '2026-11-20');
   assert.equal(formatReading(105000, 'miles'), '105,000 mi');
   assert.equal(formatReading(250, 'hours'), '250 hr');
   assert.equal(formatReading(null, 'miles'), '—');
-  assert.equal(nextDue(d.schedule[1], 'miles'), 'Nov 1, 2026 or 201,000 mi');
-  assert.equal(nextDue(d.schedule[2], ''), 'May 1, 2027');
+  assert.equal(nextDue(d.schedule[1], 'miles'), '2026-11-01 or 201,000 mi');
+  assert.equal(nextDue(d.schedule[2], ''), '2027-05-01');
   assert.equal(interval(d.schedule[1], 'miles'), 'every 5,000 mi or 6 months');
   assert.equal(interval(d.schedule[2], ''), 'every 6 months');
 });
@@ -295,4 +298,44 @@ test('icons and reminders', () => {
   assert.equal(plan.length, 2);
   assert.equal(plan[0].at, new Date(2027, 3, 24, 9).getTime());
   assert.match(plan[1].title, /Water filter: Filter change due today/);
+});
+
+test('troubleshooting entries count as repairs and round-trip', () => {
+  const s = D.addEntries(
+    store,
+    [
+      {
+        item: 'Odyssey',
+        date: '2026-10-01',
+        reading: null,
+        service: 'Oil & filter',
+        cost: 250,
+        shop: '',
+        notes: '',
+        troubleshooting: true,
+      },
+    ],
+    `${TODAY}T10:00:00Z`,
+    () => 'tt',
+  );
+  const e = s.log.find((x) => x.id === 'tt')!;
+  assert.equal(kindOf(e, s), 'Repair');
+  assert.equal(entryLabel(e), 'Oil & filter *');
+  assert.equal(D.parseStore(D.serializeStore(s)).log.find((x) => x.id === 'tt')!.troubleshooting, true);
+  assert.equal(D.parseStore(D.serializeStore(s)).log.find((x) => x.id === 'a1')!.troubleshooting, undefined);
+});
+
+test('miles per month uses the last 12 months', () => {
+  const s = D.parseStore(
+    JSON.stringify({
+      items: [{ name: 'Car', meter: 'miles' }],
+      readings: [
+        { id: '1', item: 'Car', date: '2020-01-01', reading: 10000 },
+        { id: '2', item: 'Car', date: '2026-01-01', reading: 20000 },
+        { id: '3', item: 'Car', date: '2026-11-01', reading: 30000 },
+      ],
+    }),
+  );
+  const pm = perMonth('Car', s)!;
+  assert.ok(pm > 900 && pm < 1100, String(pm)); // 10,000 mi over 10 months, not 20,000 over ~6 years
 });
