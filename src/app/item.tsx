@@ -190,8 +190,6 @@ export default function ItemScreen() {
         }}
       />
       {it.vin ? <Text style={text.muted}>VIN {it.vin}</Text> : null}
-      {it.notes ? <Text style={text.muted}>{it.notes}</Text> : null}
-      {m ? <MileageChart item={it.name} data={data} meter={m} /> : null}
 
       {(msg || error) && (
         <Banner tone="warn">
@@ -214,6 +212,7 @@ export default function ItemScreen() {
         ) : null}
         {usage !== null && m ? <Text style={text.body}>About {formatReading(usage, m)} per month</Text> : null}
       </Card>
+      {m ? <MileageChart item={it.name} data={data} meter={m} /> : null}
 
       {m ? (
         <Card>
