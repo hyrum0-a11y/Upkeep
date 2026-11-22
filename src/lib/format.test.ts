@@ -157,12 +157,13 @@ test('base64 handles UTF-8', () => {
 });
 
 test('formatting follows the meter', () => {
-  assert.equal(formatDate('2026-11-20'), 'Nov 20, 2026');
+  assert.equal(formatDate('2026-11-20'), '2026-11-20');
+  assert.equal(formatDate('2026-11-20T10:00:00Z'), '2026-11-20');
   assert.equal(formatReading(105000, 'miles'), '105,000 mi');
   assert.equal(formatReading(250, 'hours'), '250 hr');
   assert.equal(formatReading(null, 'miles'), '—');
-  assert.equal(nextDue(d.schedule[1], 'miles'), 'Nov 1, 2026 or 201,000 mi');
-  assert.equal(nextDue(d.schedule[2], ''), 'May 1, 2027');
+  assert.equal(nextDue(d.schedule[1], 'miles'), '2026-11-01 or 201,000 mi');
+  assert.equal(nextDue(d.schedule[2], ''), '2027-05-01');
   assert.equal(interval(d.schedule[1], 'miles'), 'every 5,000 mi or 6 months');
   assert.equal(interval(d.schedule[2], ''), 'every 6 months');
 });

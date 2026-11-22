@@ -82,13 +82,10 @@ export function meterLabel(m: Meter): string {
   return m === 'hours' ? 'Hour meter' : 'Odometer';
 }
 
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-/** "2026-11-20" → "Nov 20, 2026". Anything else is returned as-is. */
+/** Dates show as yyyy-mm-dd ("2026-11-20"); a longer timestamp is cut to the date. */
 export function formatDate(iso: string): string {
-  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
-  if (!m) return iso;
-  return `${MONTHS[Number(m[2]) - 1]} ${Number(m[3])}, ${m[1]}`;
+  const m = /^\d{4}-\d{2}-\d{2}/.exec(iso);
+  return m ? m[0] : iso;
 }
 
 /** 123456 → "123,456 mi"; 250 hours → "250 hr". */
@@ -124,7 +121,7 @@ export function parseNumber(s: string): number | null {
   return Number.isFinite(n) ? n : NaN;
 }
 
-/** What's coming up next: "Mar 3, 2027 or 45,000 mi". */
+/** What's coming up next: "2027-03-03 or 45,000 mi". */
 export function nextDue(s: ScheduleItem, m: Meter): string {
   const parts: string[] = [];
   if (s.nextDate) parts.push(formatDate(s.nextDate));

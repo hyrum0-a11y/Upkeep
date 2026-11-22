@@ -1,25 +1,20 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { formatCost, formatDate, formatReading, itemIcon, itemTitle, summarize, type Item, type SheetData } from '../lib/format';
-import { accentFor, colors, text } from './ui';
+import { accentFor, colors } from './ui';
 
-/** One card per vehicle or piece of equipment: a header, then the same 2×2 grid of facts on every card. */
+/** One compact card per vehicle or piece of equipment: its description, then the same four facts in a row. */
 export function ItemRow({ it, data, onPress }: { it: Item; data: SheetData; onPress: () => void }) {
   const sum = summarize(it, data);
   const accent = accentFor(data.items.findIndex((i) => i.name === it.name));
-  const title = itemTitle(it);
   const next = sum.next;
   const nextWhen = next ? (next.nextDate ? formatDate(next.nextDate) : formatReading(next.nextReading, it.meter)) : '';
   const cells: [string, string, string][] = [
-    ['Last service', sum.last ? formatDate(sum.last.date) : 'No record', sum.last ? sum.last.service : ''],
-    ['Next due', nextWhen || '—', next ? next.service : ''],
+    ['Last', sum.last ? formatDate(sum.last.date) : 'None', sum.last ? sum.last.service : ''],
+    ['Next', nextWhen || '—', next ? next.service : ''],
     it.meter
-      ? [
-          it.meter === 'hours' ? 'Hours' : 'Mileage',
-          formatReading(it.reading, it.meter),
-          it.readingUpdated ? `as of ${formatDate(it.readingUpdated)}` : '',
-        ]
-      : ['Spent total', sum.spent ? formatCost(sum.spent) : '—', ''],
-    ['Last 6 months', sum.spent6mo ? formatCost(sum.spent6mo) : '$0', 'spent'],
+      ? [it.meter === 'hours' ? 'Hours' : 'Miles', it.reading !== null ? Math.round(it.reading).toLocaleString('en-US') : '—', '']
+      : ['Spent', sum.spent ? formatCost(sum.spent) : '—', 'total'],
+    ['6 mo', sum.spent6mo ? formatCost(sum.spent6mo) : '$0', 'spent'],
   ];
   return (
     <Pressable
@@ -27,29 +22,17 @@ export function ItemRow({ it, data, onPress }: { it: Item; data: SheetData; onPr
       style={({ pressed }) => [styles.card, { borderLeftColor: accent }, pressed && { opacity: 0.8 }]}
       accessibilityRole="button"
     >
-      <View style={styles.header}>
-        <View style={styles.nameRow}>
-          <View style={[styles.icon, { backgroundColor: accent + '22' }]}>
-            <Text style={{ fontSize: 18 }}>{itemIcon(it)}</Text>
-          </View>
-          <Text style={[text.h2, { flexShrink: 1 }]} numberOfLines={1}>
-            {it.name}
-          </Text>
-        </View>
-        {title ? (
-          <Text style={[text.muted, { textAlign: 'center' }]} numberOfLines={1}>
-            {title}
-          </Text>
-        ) : null}
-      </View>
-      <View style={styles.grid}>
+      <Text style={styles.title} numberOfLines={1}>
+        {itemIcon(it)} {itemTitle(it) || it.name}
+      </Text>
+      <View style={styles.row}>
         {cells.map(([label, value, sub]) => (
           <View key={label} style={styles.cell}>
             <Text style={styles.label}>{label}</Text>
-            <Text style={[text.body, { fontWeight: '600' }]} numberOfLines={1}>
+            <Text style={styles.value} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
               {value}
             </Text>
-            <Text style={text.muted} numberOfLines={1}>
+            <Text style={styles.sub} numberOfLines={1}>
               {sub || ' '}
             </Text>
           </View>
@@ -62,17 +45,18 @@ export function ItemRow({ it, data, onPress }: { it: Item; data: SheetData; onPr
 const styles = StyleSheet.create({
   card: {
     backgroundColor: colors.card,
-    borderRadius: 16,
-    padding: 14,
-    gap: 10,
+    borderRadius: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    gap: 6,
     borderWidth: 1,
     borderColor: colors.border,
-    borderLeftWidth: 6,
+    borderLeftWidth: 5,
   },
-  header: { alignItems: 'center', gap: 2 },
-  nameRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
-  icon: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  cell: { flexBasis: '47%', flexGrow: 1, backgroundColor: colors.bg, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 10 },
-  label: { fontSize: 12, color: colors.muted, textTransform: 'uppercase', letterSpacing: 0.5 },
+  title: { fontSize: 16, fontWeight: '700', color: colors.text, textAlign: 'center' },
+  row: { flexDirection: 'row', gap: 6 },
+  cell: { flex: 1, backgroundColor: colors.bg, borderRadius: 8, paddingVertical: 4, paddingHorizontal: 6 },
+  label: { fontSize: 10, color: colors.muted, textTransform: 'uppercase', letterSpacing: 0.5 },
+  value: { fontSize: 13, fontWeight: '600', color: colors.text },
+  sub: { fontSize: 11, color: colors.muted },
 });
