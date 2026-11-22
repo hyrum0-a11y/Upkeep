@@ -12,7 +12,11 @@ export function ItemRow({ it, data, onPress }: { it: Item; data: SheetData; onPr
     ['Last', sum.last ? formatDate(sum.last.date) : 'None', sum.last ? sum.last.service : ''],
     ['Next', nextWhen || '—', next ? next.service : ''],
     it.meter
-      ? [it.meter === 'hours' ? 'Hours' : 'Miles', it.reading !== null ? Math.round(it.reading).toLocaleString('en-US') : '—', '']
+      ? [
+          it.meter === 'hours' ? 'Hours' : 'Miles',
+          it.reading !== null ? Math.round(it.reading).toLocaleString('en-US') : '—',
+          it.readingUpdated ? formatDate(it.readingUpdated) : '',
+        ]
       : ['Spent', sum.spent ? formatCost(sum.spent) : '—', 'total'],
     ['6 mo', sum.spent6mo ? formatCost(sum.spent6mo) : '$0', 'spent'],
   ];
@@ -32,9 +36,7 @@ export function ItemRow({ it, data, onPress }: { it: Item; data: SheetData; onPr
             <Text style={styles.value} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
               {value}
             </Text>
-            <Text style={styles.sub} numberOfLines={1}>
-              {sub || ' '}
-            </Text>
+            {sub ? <Text style={styles.sub}>{sub}</Text> : null}
           </View>
         ))}
       </View>
