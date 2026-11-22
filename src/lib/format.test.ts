@@ -18,6 +18,7 @@ import {
   nextDue,
   parseNumber,
   perMonth,
+  readingHistory,
   spendingByYear,
   statusLine,
   summarize,
@@ -350,4 +351,18 @@ test('monthly spending and display names', () => {
   assert.equal(months.find((m) => m.month === '2026-05')!.byItem['Odyssey'], 45.5);
   assert.equal(nameFor('Odyssey', d), '2003 Honda Odyssey EX');
   assert.equal(nameFor('Water filter', d), 'Water filter');
+});
+
+test('reading history includes service mileages', () => {
+  const h = readingHistory('Odyssey', d);
+  // start reading (2026-11-20, 201,234) + two log readings
+  assert.deepEqual(
+    h.map((r) => [r.date, r.reading, r.service ?? null]),
+    [
+      ['2026-11-20', 201234, null],
+      ['2026-05-01', 196000, 'Oil & filter'],
+      ['2025-11-01', 191000, 'Oil & filter'],
+    ],
+  );
+  assert.equal(h[1].entryId, 'a1');
 });

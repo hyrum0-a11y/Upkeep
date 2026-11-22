@@ -270,3 +270,21 @@ export function monthlySpending(data: SheetData, months: number, today: string =
   }
   return out;
 }
+
+/** A row in an item's reading history: a manual reading, or the mileage recorded on a service entry. */
+export type HistoryReading = { id: string; date: string; reading: number; service?: string; entryId?: string };
+
+/** Manual readings plus service mileages for an item, newest first. A service reading that matches a manual one (same date and value) is left out. */
+export function readingHistory(item: string, data: SheetData): HistoryReading[] {
+  const manual: HistoryReading[] = data.readings.filter((r) => r.item === item).map((r) => ({ ...r }));
+  const fromLog: HistoryReading[] = data.log
+    .filter((e) => e.item === item && e.reading !== null && !manual.some((r) => r.date === e.date && r.reading === e.reading))
+    .map((e) => ({
+      id: `svc-${e.id || e.date + e.service}`,
+      date: e.date,
+      reading: e.reading as number,
+      service: e.service,
+      entryId: e.id,
+    }));
+  return [...manual, ...fromLog].sort((a, b) => b.date.localeCompare(a.date) || b.reading - a.reading);
+}

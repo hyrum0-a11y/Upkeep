@@ -2,7 +2,7 @@ import { router } from 'expo-router';
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Card, Row, accentFor, colors, text } from '../components/ui';
 import { refresh, useSheet } from '../lib/api';
-import { displayName, formatDate, formatReading, itemIcon, perMonth } from '../lib/format';
+import { displayName, formatDate, formatReading, itemIcon, perMonth, readingHistory } from '../lib/format';
 
 /** Mileage / hours history for everything with a meter. */
 export default function UsageScreen() {
@@ -14,7 +14,7 @@ export default function UsageScreen() {
       {data &&
         metered.map((it) => {
           const m = it.meter;
-          const readings = data.readings.filter((r) => r.item === it.name).sort((a, b) => b.date.localeCompare(a.date));
+          const readings = readingHistory(it.name, data);
           const usage = perMonth(it.name, data);
           const accent = accentFor(data.items.findIndex((i) => i.name === it.name));
           return (
@@ -40,7 +40,10 @@ export default function UsageScreen() {
                 const diff = prev ? r.reading - prev.reading : null;
                 return (
                   <View key={r.id} style={styles.row}>
-                    <Text style={text.body}>{formatDate(r.date)}</Text>
+                    <Text style={text.body}>
+                      {formatDate(r.date)}
+                      {r.service ? <Text style={text.muted}> · 🔧 {r.service}</Text> : null}
+                    </Text>
                     <Text style={text.muted}>
                       {formatReading(r.reading, m)}
                       {diff !== null && diff > 0 ? `  (+${formatReading(diff, m)})` : ''}

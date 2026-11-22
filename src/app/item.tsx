@@ -2,7 +2,7 @@ import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Alert, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { Banner, Button, Card, Field, FormScroll, Row, StatusPill, colors, text } from '../components/ui';
-import { deleteReading, deleteSchedule, refresh, saveSchedule, setReading, updateReading, useSheet } from '../lib/api';
+import { deleteReading, deleteSchedule, refresh, saveSchedule, setReading, updateReading, updateService, useSheet } from '../lib/api';
 import {
   byUrgency,
   formatCost,
@@ -19,6 +19,7 @@ import {
   parseNumber,
   entryLabel,
   perMonth,
+  readingHistory,
   toISODate,
   summarize,
   type Meter,
@@ -59,7 +60,7 @@ export default function ItemScreen() {
   const dueWithinMonth =
     !!sum.next &&
     (sum.next.status === 'Overdue' || sum.next.status === 'Due soon' || (!!sum.next.nextDate && sum.next.nextDate <= monthOut));
-  const readings = data.readings.filter((r) => r.item === it.name).sort((a, b) => b.date.localeCompare(a.date));
+  const readings = readingHistory(it.name, data);
   const usage = perMonth(it.name, data);
   const title = itemTitle(it);
 
@@ -255,9 +256,17 @@ export default function ItemScreen() {
                         initial={r}
                         busy={busy}
                         onCancel={() => setEditingReading(null)}
+                        service={r.service}
+                        onOpenService={r.entryId ? () => router.push({ pathname: '/add', params: { id: r.entryId! } }) : undefined}
                         onSave={(value, date) =>
                           run(
-                            () => updateReading(r.id, value, date),
+                            () => {
+                              if (!r.service) return updateReading(r.id, value, date);
+                              const e = data.log.find((x) => x.id === r.entryId);
+                              if (!e) throw new Error('That service entry is gone. Pull to refresh.');
+                              const { id: _id, ...rest } = e;
+                              return updateService(e.id, { ...rest, reading: value });
+                            },
                             () => setEditingReading(null),
                           )
                         }
@@ -282,7 +291,10 @@ export default function ItemScreen() {
                         onPress={() => setEditingReading(r.id)}
                         style={({ pressed }) => [styles.readingRow, pressed && { opacity: 0.6 }]}
                       >
-                        <Text style={text.body}>{formatReading(r.reading, m)}</Text>
+                        <Text style={text.body}>
+                          {formatReading(r.reading, m)}
+                          {r.service ? <Text style={text.muted}> · 🔧 {r.service}</Text> : null}
+                        </Text>
                         <Text style={text.muted}>{formatDate(r.date)} ✎</Text>
                       </Pressable>
                     ),
@@ -292,7 +304,9 @@ export default function ItemScreen() {
                       {allReadings ? 'Show fewer' : `Show all ${readings.length}`}
                     </Text>
                   )}
-                  <Text style={text.muted}>Tap a reading to fix it. Saving replaces the old one.</Text>
+                  <Text style={text.muted}>
+                    Tap a reading to fix it. 🔧 readings come from service entries; fixing one updates that entry.
+                  </Text>
                 </>
               )}
             </>
@@ -429,9 +443,13 @@ function ReadingEditor({
   onSave,
   onCancel,
   onDelete,
+  service,
+  onOpenService,
 }: {
   meter: Meter;
-  initial: Reading;
+  initial: { reading: number; date: string };
+  service?: string;
+  onOpenService?: () => void;
   busy: boolean;
   onSave: (reading: number, date: string) => void;
   onCancel: () => void;
@@ -453,18 +471,33 @@ function ReadingEditor({
         <View style={{ flex: 1 }}>
           <Field label={meter === 'hours' ? 'Hours' : 'Mileage'} value={value} onChangeText={setValue} keyboardType="number-pad" />
         </View>
-        <View style={{ flex: 1 }}>
-          <Field label="Date" value={date} onChangeText={setDate} keyboardType="numbers-and-punctuation" />
-        </View>
+        {service ? null : (
+          <View style={{ flex: 1 }}>
+            <Field label="Date" value={date} onChangeText={setDate} keyboardType="numbers-and-punctuation" />
+          </View>
+        )}
       </Row>
+      {service ? (
+        <Text style={text.muted}>
+          From {service} on {formatDate(initial.date)}. Saving changes the mileage on that entry.
+        </Text>
+      ) : null}
       {err ? <Text style={{ color: colors.danger, fontSize: 14 }}>{err}</Text> : null}
       <Row>
         <Button label="Cancel" variant="outline" onPress={onCancel} style={{ flex: 1 }} />
         <Button label="Save" onPress={save} disabled={busy} style={{ flex: 1 }} />
       </Row>
-      <Text style={{ color: colors.danger, fontSize: 14 }} onPress={onDelete}>
-        Delete this reading
-      </Text>
+      {service ? (
+        onOpenService ? (
+          <Text style={{ color: colors.primary, fontSize: 14 }} onPress={onOpenService}>
+            Open the service entry ›
+          </Text>
+        ) : null
+      ) : (
+        <Text style={{ color: colors.danger, fontSize: 14 }} onPress={onDelete}>
+          Delete this reading
+        </Text>
+      )}
     </View>
   );
 }
