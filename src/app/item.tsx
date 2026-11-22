@@ -36,6 +36,7 @@ export default function ItemScreen() {
   const [showAdd, setShowAdd] = useState(false);
   const [editing, setEditing] = useState<string | null>(null); // service being edited
   const [open, setOpen] = useState<string | null>(null); // service row expanded
+  const [showNever, setShowNever] = useState(false);
 
   const it = data?.items.find((x) => x.name === name);
   if (!data || !it) {
@@ -47,6 +48,8 @@ export default function ItemScreen() {
   }
   const m = it.meter;
   const schedule = byUrgency(data.schedule.filter((s) => s.item === it.name));
+  const logged = schedule.filter((s) => s.status !== 'No record');
+  const neverLogged = schedule.filter((s) => s.status === 'No record');
   const history = newestFirst(data.log.filter((e) => e.item === it.name));
   const sum = summarize(it, data);
   const readings = data.readings.filter((r) => r.item === it.name).sort((a, b) => b.date.localeCompare(a.date));
@@ -102,6 +105,64 @@ export default function ItemScreen() {
       pathname: '/add',
       params: { item: it.name, service: s.service, reading: it.reading !== null ? String(it.reading) : '' },
     });
+
+  const renderService = (s: (typeof schedule)[number], i: number) => (
+    <View key={s.service} style={i > 0 && styles.svcDivider}>
+      <Pressable
+        onPress={() => setOpen(open === s.service ? null : s.service)}
+        style={({ pressed }) => [styles.svcRow, pressed && { opacity: 0.6 }]}
+        accessibilityRole="button"
+        accessibilityState={{ expanded: open === s.service }}
+      >
+        <View style={{ flex: 1 }}>
+          <Text style={[text.body, { fontWeight: '600' }]}>{s.service}</Text>
+          <Text style={text.muted} numberOfLines={1}>
+            {s.lastDone
+              ? `Last: ${formatDate(s.lastDone)}${s.lastReading !== null && m ? ` at ${formatReading(s.lastReading, m)}` : ''}`
+              : 'Last: never logged'}
+          </Text>
+          <Text style={text.muted} numberOfLines={1}>
+            {nextDue(s, m) ? `Next: ${nextDue(s, m)}` : interval(s, m).replace(/^every/, 'Every')}
+          </Text>
+        </View>
+        <StatusPill status={s.status} />
+      </Pressable>
+      {open === s.service && (
+        <View style={{ paddingBottom: 10, gap: 4 }}>
+          {details(s).map((line) => (
+            <Text key={line} style={text.muted}>
+              {line}
+            </Text>
+          ))}
+          {(() => {
+            const recent = history.filter((e) => e.service === s.service);
+            return recent.length ? (
+              <>
+                <Text style={[text.section, { marginTop: 6 }]}>Last {Math.min(3, recent.length)} times</Text>
+                {recent.slice(0, 3).map((e) => (
+                  <Pressable
+                    key={e.id || e.date}
+                    onPress={e.id ? () => router.push({ pathname: '/add', params: { id: e.id } }) : undefined}
+                    style={({ pressed }) => [styles.readingRow, pressed && { opacity: 0.6 }]}
+                  >
+                    <Text style={text.body}>{formatDate(e.date)}</Text>
+                    <Text style={text.muted}>
+                      {[e.reading !== null && m && formatReading(e.reading, m), formatCost(e.cost)].filter(Boolean).join(' · ')}
+                      {e.id ? '  ✎' : ''}
+                    </Text>
+                  </Pressable>
+                ))}
+              </>
+            ) : null;
+          })()}
+          <Row style={{ marginTop: 6 }}>
+            <Button label="Log it as done" onPress={() => markDone(s)} style={{ flex: 1 }} />
+            <Button label="Edit schedule" variant="outline" onPress={() => setEditing(s.service)} style={{ flex: 1 }} />
+          </Row>
+        </View>
+      )}
+    </View>
+  );
 
   return (
     <FormScroll contentContainerStyle={styles.wrap} refreshControl={<RefreshControl refreshing={loading} onRefresh={refresh} />}>
@@ -250,14 +311,6 @@ export default function ItemScreen() {
 
       <Text style={text.section}>Schedule</Text>
       {schedule.length === 0 && <Text style={text.muted}>No scheduled services yet. Add one below.</Text>}
-      {sum.noRecord > 0 && (
-        <Text
-          style={{ color: colors.primary, fontSize: 15 }}
-          onPress={() => router.push({ pathname: '/starting', params: { item: it.name } })}
-        >
-          Set starting points for services never logged ›
-        </Text>
-      )}
       {editing ? (
         <ScheduleForm
           meter={m}
@@ -286,66 +339,30 @@ export default function ItemScreen() {
           }
         />
       ) : null}
-      {schedule.length > 0 && (
-        <Card style={{ paddingVertical: 4 }}>
-          {schedule.map((s, i) => (
-            <View key={s.service} style={i > 0 && styles.svcDivider}>
-              <Pressable
-                onPress={() => setOpen(open === s.service ? null : s.service)}
-                style={({ pressed }) => [styles.svcRow, pressed && { opacity: 0.6 }]}
-                accessibilityRole="button"
-                accessibilityState={{ expanded: open === s.service }}
+      {logged.length > 0 && <Card style={{ paddingVertical: 4 }}>{logged.map(renderService)}</Card>}
+      {neverLogged.length > 0 && (
+        <>
+          <Pressable
+            onPress={() => setShowNever(!showNever)}
+            style={({ pressed }) => [styles.neverHeader, pressed && { opacity: 0.6 }]}
+            accessibilityRole="button"
+            accessibilityState={{ expanded: showNever }}
+          >
+            <Text style={[text.body, { fontWeight: '600', flex: 1 }]}>Never logged ({neverLogged.length})</Text>
+            <Text style={{ color: colors.muted, fontSize: 18 }}>{showNever ? '⌃' : '⌄'}</Text>
+          </Pressable>
+          {showNever && (
+            <>
+              <Card style={{ paddingVertical: 4 }}>{neverLogged.map(renderService)}</Card>
+              <Text
+                style={{ color: colors.primary, fontSize: 15 }}
+                onPress={() => router.push({ pathname: '/starting', params: { item: it.name } })}
               >
-                <View style={{ flex: 1 }}>
-                  <Text style={[text.body, { fontWeight: '600' }]}>{s.service}</Text>
-                  <Text style={text.muted} numberOfLines={1}>
-                    {s.lastDone
-                      ? `Last: ${formatDate(s.lastDone)}${s.lastReading !== null && m ? ` at ${formatReading(s.lastReading, m)}` : ''}`
-                      : 'Last: never logged'}
-                  </Text>
-                  <Text style={text.muted} numberOfLines={1}>
-                    {nextDue(s, m) ? `Next: ${nextDue(s, m)}` : interval(s, m).replace(/^every/, 'Every')}
-                  </Text>
-                </View>
-                <StatusPill status={s.status} />
-              </Pressable>
-              {open === s.service && (
-                <View style={{ paddingBottom: 10, gap: 4 }}>
-                  {details(s).map((line) => (
-                    <Text key={line} style={text.muted}>
-                      {line}
-                    </Text>
-                  ))}
-                  {(() => {
-                    const recent = history.filter((e) => e.service === s.service);
-                    return recent.length ? (
-                      <>
-                        <Text style={[text.section, { marginTop: 6 }]}>Last {Math.min(3, recent.length)} times</Text>
-                        {recent.slice(0, 3).map((e) => (
-                          <Pressable
-                            key={e.id || e.date}
-                            onPress={e.id ? () => router.push({ pathname: '/add', params: { id: e.id } }) : undefined}
-                            style={({ pressed }) => [styles.readingRow, pressed && { opacity: 0.6 }]}
-                          >
-                            <Text style={text.body}>{formatDate(e.date)}</Text>
-                            <Text style={text.muted}>
-                              {[e.reading !== null && m && formatReading(e.reading, m), formatCost(e.cost)].filter(Boolean).join(' · ')}
-                              {e.id ? '  ✎' : ''}
-                            </Text>
-                          </Pressable>
-                        ))}
-                      </>
-                    ) : null;
-                  })()}
-                  <Row style={{ marginTop: 6 }}>
-                    <Button label="Log it as done" onPress={() => markDone(s)} style={{ flex: 1 }} />
-                    <Button label="Edit schedule" variant="outline" onPress={() => setEditing(s.service)} style={{ flex: 1 }} />
-                  </Row>
-                </View>
-              )}
-            </View>
-          ))}
-        </Card>
+                Set starting points for all of these ›
+              </Text>
+            </>
+          )}
+        </>
       )}
       <Text style={text.muted}>Tap a service for details, to log it, or to edit its schedule. Tap a history entry to fix it.</Text>
       {showAdd ? (
@@ -517,6 +534,16 @@ function ScheduleForm({
 }
 
 const styles = StyleSheet.create({
+  neverHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    backgroundColor: colors.card,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
   wrap: { padding: 16, gap: 12, paddingBottom: 40 },
   readingRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8 },
   readingEdit: {

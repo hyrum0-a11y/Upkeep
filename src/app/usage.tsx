@@ -23,11 +23,14 @@ export default function UsageScreen() {
               onPress={() => router.push({ pathname: '/item', params: { name: it.name } })}
               style={{ borderLeftWidth: 6, borderLeftColor: accent }}
             >
-              <Row style={{ justifyContent: 'space-between' }}>
-                <Text style={text.h2}>
-                  {itemIcon(it)} {it.name}
-                </Text>
-                <Text style={[text.body, { fontWeight: '600' }]}>{formatReading(it.reading, m)}</Text>
+              <Row style={{ gap: 10 }}>
+                <Text style={{ fontSize: 22 }}>{itemIcon(it)}</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={text.h2} numberOfLines={1}>
+                    {it.name}
+                  </Text>
+                  <Text style={[text.body, { fontWeight: '600' }]}>{formatReading(it.reading, m)}</Text>
+                </View>
               </Row>
               <Text style={text.muted}>
                 {usage !== null ? `About ${formatReading(usage, m)} per month` : 'Add readings a month or more apart to see monthly use.'}

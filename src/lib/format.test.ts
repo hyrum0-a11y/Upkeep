@@ -289,6 +289,7 @@ test('spending by year splits routine and repairs', () => {
 test('icons and reminders', () => {
   assert.equal(itemIcon({ ...store.items[0], model: 'Silverado', make: 'Chevrolet' }), '🛻');
   assert.equal(itemIcon(store.items[1]), '💧');
+  assert.equal(itemIcon({ ...store.items[1], name: 'Living room fireplace' }), '🔥');
   const plan = reminderPlan(d, new Date(2026, 10, 21, 12));
   // Water filter is due 2027-05-01: a week before and on the day, 9 AM. Odyssey oil (due Nov 1) is past.
   assert.equal(plan.length, 2);
