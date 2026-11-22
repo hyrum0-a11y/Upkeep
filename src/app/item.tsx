@@ -9,6 +9,7 @@ import {
   formatDate,
   formatReading,
   interval,
+  itemIcon,
   itemTitle,
   meterLabel,
   newestFirst,
@@ -176,7 +177,7 @@ export default function ItemScreen() {
     <FormScroll contentContainerStyle={styles.wrap} refreshControl={<RefreshControl refreshing={loading} onRefresh={refresh} />}>
       <Stack.Screen
         options={{
-          title: it.name,
+          title: `${itemIcon(it)} ${title || it.name}`,
           headerRight: () => (
             <Pressable
               onPress={() => router.push({ pathname: '/edit', params: { name: it.name } })}
@@ -188,7 +189,6 @@ export default function ItemScreen() {
           ),
         }}
       />
-      {title ? <Text style={text.muted}>{title}</Text> : null}
       {it.vin ? <Text style={text.muted}>VIN {it.vin}</Text> : null}
       {it.notes ? <Text style={text.muted}>{it.notes}</Text> : null}
 
