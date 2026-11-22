@@ -28,20 +28,19 @@ export function ItemRow({ it, data, onPress }: { it: Item; data: SheetData; onPr
       accessibilityRole="button"
     >
       <View style={styles.header}>
-        <View style={[styles.icon, { backgroundColor: accent + '22' }]}>
-          <Text style={{ fontSize: 22 }}>{itemIcon(it)}</Text>
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={text.h2} numberOfLines={1}>
+        <View style={styles.nameRow}>
+          <View style={[styles.icon, { backgroundColor: accent + '22' }]}>
+            <Text style={{ fontSize: 18 }}>{itemIcon(it)}</Text>
+          </View>
+          <Text style={[text.h2, { flexShrink: 1 }]} numberOfLines={1}>
             {it.name}
           </Text>
-          {title ? (
-            <Text style={text.muted} numberOfLines={1}>
-              {title}
-            </Text>
-          ) : null}
         </View>
-        <Text style={{ color: colors.muted, fontSize: 22 }}>›</Text>
+        {title ? (
+          <Text style={[text.muted, { textAlign: 'center' }]} numberOfLines={1}>
+            {title}
+          </Text>
+        ) : null}
       </View>
       <View style={styles.grid}>
         {cells.map(([label, value, sub]) => (
@@ -70,8 +69,9 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     borderLeftWidth: 6,
   },
-  header: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  icon: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  header: { alignItems: 'center', gap: 2 },
+  nameRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  icon: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   cell: { flexBasis: '47%', flexGrow: 1, backgroundColor: colors.bg, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 10 },
   label: { fontSize: 12, color: colors.muted, textTransform: 'uppercase', letterSpacing: 0.5 },

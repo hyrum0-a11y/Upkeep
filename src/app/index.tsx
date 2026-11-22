@@ -2,9 +2,9 @@ import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Linking, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Banner, Button, Card, Row, StatusPill, colors, text } from '../components/ui';
+import { Banner, Button, Card, Row, StatusPill, accentFor, colors, text } from '../components/ui';
 import { refresh, useSheet } from '../lib/api';
-import { byUrgency, formatCost, isVehicle, nextDue, summarize } from '../lib/format';
+import { byUrgency, formatCost, isVehicle, itemIcon, nextDue, summarize, type SheetData } from '../lib/format';
 import { checkForUpdate, installUpdate, type Update } from '../lib/update';
 
 export default function Home() {
@@ -89,6 +89,8 @@ export default function Home() {
             <Tile icon="📈" title="Usage" detail="Mileage history" onPress={() => router.push('/usage')} />
           </View>
 
+          <SpendChart data={data} />
+
           <Text style={text.section}>Overdue & due soon</Text>
           {attention.length === 0 ? (
             <Text style={text.muted}>Nothing overdue or due soon. Services with no record yet can't come due.</Text>
@@ -121,6 +123,59 @@ export default function Home() {
   );
 }
 
+/** Spending per vehicle / equipment: last 6 months vs. last 12 months, as paired bars. */
+function SpendChart({ data }: { data: SheetData }) {
+  const rows = data.items
+    .map((it, i) => ({ it, i, ...summarize(it, data) }))
+    .filter((r) => r.spent12mo > 0)
+    .sort((a, b) => b.spent12mo - a.spent12mo);
+  if (rows.length === 0) return null;
+  const max = Math.max(...rows.map((r) => r.spent12mo));
+  return (
+    <Card>
+      <Text style={text.section}>Spending by vehicle & equipment</Text>
+      <Row style={{ gap: 16 }}>
+        <Row style={{ gap: 6 }}>
+          <View style={[styles.swatch, { backgroundColor: colors.primary }]} />
+          <Text style={text.muted}>Last 6 months</Text>
+        </Row>
+        <Row style={{ gap: 6 }}>
+          <View style={[styles.swatch, { backgroundColor: colors.primary, opacity: 0.35 }]} />
+          <Text style={text.muted}>Last 12 months</Text>
+        </Row>
+      </Row>
+      {rows.map((r) => (
+        <View key={r.it.name} style={{ gap: 3, marginTop: 6 }}>
+          <Text style={[text.body, { fontWeight: '600' }]} numberOfLines={1}>
+            {itemIcon(r.it)} {r.it.name}
+          </Text>
+          <BarLine value={r.spent6mo} max={max} color={accentFor(r.i)} />
+          <BarLine value={r.spent12mo} max={max} color={accentFor(r.i)} faded />
+        </View>
+      ))}
+    </Card>
+  );
+}
+
+function BarLine({ value, max, color, faded }: { value: number; max: number; color: string; faded?: boolean }) {
+  return (
+    <Row style={{ gap: 8 }}>
+      <View style={styles.track}>
+        <View
+          style={{
+            width: `${max ? (value / max) * 100 : 0}%`,
+            height: '100%',
+            backgroundColor: color,
+            opacity: faded ? 0.35 : 1,
+            borderRadius: 5,
+          }}
+        />
+      </View>
+      <Text style={[text.muted, { width: 84, textAlign: 'right' }]}>{value ? formatCost(value) : '$0'}</Text>
+    </Row>
+  );
+}
+
 /** A big square button on the home screen. */
 function Tile({ icon, title, detail, onPress }: { icon: string; title: string; detail: string; onPress: () => void }) {
   return (
@@ -137,6 +192,8 @@ function Tile({ icon, title, detail, onPress }: { icon: string; title: string; d
 const styles = StyleSheet.create({
   wrap: { padding: 16, gap: 12 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  track: { flex: 1, height: 10, borderRadius: 5, backgroundColor: colors.border, overflow: 'hidden' },
+  swatch: { width: 12, height: 12, borderRadius: 3 },
   tile: {
     flexBasis: '47%',
     flexGrow: 1,

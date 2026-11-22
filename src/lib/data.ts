@@ -84,6 +84,7 @@ export function parseStore(json: string): Store {
         shop: str(r.shop),
         notes: str(r.notes),
         entered: str(r.entered),
+        ...(r.troubleshooting === true ? { troubleshooting: true } : {}),
       }))
       .filter((e) => e.item && e.service),
     readings: list(raw.readings)

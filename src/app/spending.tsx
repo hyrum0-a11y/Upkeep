@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Card, Chip, Row, colors, text } from '../components/ui';
 import { refresh, useSheet } from '../lib/api';
-import { formatCost, formatDate, kindOf, newestFirst, spendingByYear } from '../lib/format';
+import { entryLabel, formatCost, formatDate, kindOf, newestFirst, spendingByYear } from '../lib/format';
 
 /** Money spent: per year, split routine vs. repairs, then per vehicle / equipment, then the entries. */
 export default function SpendingScreen() {
@@ -63,7 +63,7 @@ export default function SpendingScreen() {
               >
                 <View style={{ flex: 1 }}>
                   <Text style={text.body}>
-                    {e.item} · {e.service}
+                    {e.item} · {entryLabel(e)}
                   </Text>
                   <Text style={text.muted}>
                     {formatDate(e.date)} · {kindOf(e, data) === 'Routine' ? 'Routine' : 'Repair'}

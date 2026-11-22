@@ -27,6 +27,8 @@ export type ServiceEntry = {
   cost: number | null;
   shop: string;
   notes: string;
+  /** Done while chasing a problem, not because it was due. Still counts as done; counts as a repair in spending. */
+  troubleshooting?: boolean;
 };
 
 /** A schedule row with its worked-out last done / next due / status (see compute in data.ts). */
@@ -53,15 +55,21 @@ export type SheetData = {
   readings: Reading[];
 };
 
-/** Average use per month from the readings and log, e.g. 850 (miles/month). Needs 30+ days of span. */
+/**
+ * Recent use per month from the readings and log, e.g. 850 (miles/month).
+ * Uses the last 12 months of readings when they span 30+ days, otherwise all of them.
+ */
 export function perMonth(item: string, data: SheetData): number | null {
   const pts = [
     ...data.readings.filter((r) => r.item === item),
     ...data.log.filter((e) => e.item === item && e.reading !== null).map((e) => ({ date: e.date, reading: e.reading as number })),
   ].sort((a, b) => a.date.localeCompare(b.date));
   if (pts.length < 2) return null;
-  const first = pts[0];
   const last = pts[pts.length - 1];
+  const yearBefore = toISODate(new Date(Date.parse(last.date) - 365 * 86_400_000));
+  const recent = pts.filter((p) => p.date >= yearBefore);
+  const span = (a: { date: string }) => (Date.parse(last.date) - Date.parse(a.date)) / 86_400_000;
+  const first = recent.length >= 2 && span(recent[0]) >= 30 ? recent[0] : pts[0];
   const days = (Date.parse(last.date) - Date.parse(first.date)) / 86_400_000;
   if (!(days >= 30) || last.reading <= first.reading) return null;
   return ((last.reading - first.reading) / days) * 30.44;
@@ -151,6 +159,7 @@ export function newestFirst(log: ServiceEntry[]): ServiceEntry[] {
 export function summarize(it: Item, data: SheetData, today: string = toISODate(new Date())) {
   const [y, mo, d] = today.split('-').map(Number);
   const sixMonthsAgo = toISODate(new Date(y, mo - 1 - 6, d));
+  const yearAgo = toISODate(new Date(y - 1, mo - 1, d));
   const schedule = data.schedule.filter((s) => s.item === it.name);
   const log = newestFirst(data.log.filter((e) => e.item === it.name));
   const count = (st: Status) => schedule.filter((s) => s.status === st).length;
@@ -164,6 +173,7 @@ export function summarize(it: Item, data: SheetData, today: string = toISODate(n
     last: log[0] ?? null,
     spent: log.reduce((sum, e) => sum + (e.cost ?? 0), 0),
     spent6mo: log.filter((e) => e.date > sixMonthsAgo && e.date <= today).reduce((sum, e) => sum + (e.cost ?? 0), 0),
+    spent12mo: log.filter((e) => e.date > yearAgo && e.date <= today).reduce((sum, e) => sum + (e.cost ?? 0), 0),
   };
 }
 
@@ -198,8 +208,9 @@ export function itemIcon(it: Item): string {
 
 export type Kind = 'Routine' | 'Repair';
 
-/** Routine when the entry matches a scheduled service for that item, otherwise a repair / one-off. */
+/** Routine when the entry matches a scheduled service for that item (and wasn't troubleshooting), otherwise a repair / one-off. */
 export function kindOf(e: ServiceEntry, data: SheetData): Kind {
+  if (e.troubleshooting) return 'Repair';
   return data.schedule.some((s) => s.item === e.item && s.service === e.service) ? 'Routine' : 'Repair';
 }
 
@@ -232,3 +243,6 @@ export function spendingByYear(data: SheetData) {
       items: [...v.items.entries()].map(([item, t]) => ({ item, ...t })).sort((a, b) => b.total - a.total),
     }));
 }
+
+/** The service name as shown in lists: troubleshooting entries get an asterisk. */
+export const entryLabel = (e: ServiceEntry) => (e.troubleshooting ? `${e.service} *` : e.service);
