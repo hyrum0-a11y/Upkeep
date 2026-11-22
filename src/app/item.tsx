@@ -99,9 +99,6 @@ export default function ItemScreen() {
     } else go();
   };
 
-  const meta = (e: { reading: number | null; cost: number | null; shop: string }) =>
-    [e.reading !== null && m && formatReading(e.reading, m), formatCost(e.cost), e.shop].filter(Boolean).join(' · ');
-
   const details = (s: ScheduleItem) => [interval(s, m).replace(/^every/, 'Every'), s.part].filter(Boolean);
 
   // Open Log service with this service picked and the current reading filled in.
@@ -197,8 +194,8 @@ export default function ItemScreen() {
         </Banner>
       )}
 
+      <Text style={text.heading}>Summary</Text>
       <Card>
-        <Text style={text.section}>Summary</Text>
         {it.purchased ? <Text style={text.body}>Purchased {formatDate(it.purchased)}</Text> : null}
         {dueWithinMonth ? (
           <Text style={[text.body, { color: sum.next!.status === 'Overdue' ? colors.danger : colors.warn }]}>
@@ -315,17 +312,9 @@ export default function ItemScreen() {
         </Card>
       ) : null}
 
-      <Row>
-        <Button label="＋ Log service" onPress={() => router.push({ pathname: '/add', params: { item: it.name } })} style={{ flex: 1 }} />
-        <Button
-          label="＋ Log repair"
-          variant="outline"
-          onPress={() => router.push({ pathname: '/add', params: { item: it.name, repair: '1' } })}
-          style={{ flex: 1 }}
-        />
-      </Row>
+      <Button label="＋ Log service, repair or fee" onPress={() => router.push({ pathname: '/add', params: { item: it.name } })} />
 
-      <Text style={text.section}>Schedule</Text>
+      <Text style={text.heading}>Schedule</Text>
       {schedule.length === 0 && <Text style={text.muted}>No scheduled services yet. Add one below.</Text>}
       {editing ? (
         <ScheduleForm
@@ -396,7 +385,7 @@ export default function ItemScreen() {
         <Button label="Add a schedule item" variant="outline" onPress={() => setShowAdd(true)} />
       )}
 
-      <Text style={text.section}>History</Text>
+      <Text style={text.heading}>History</Text>
       {history.length === 0 && <Text style={text.muted}>Nothing logged yet.</Text>}
       {history.some((e) => e.troubleshooting) && <Text style={text.muted}>* Done while troubleshooting, not because it was due.</Text>}
       {byYear(history).map(([year, entries]) => (
@@ -412,9 +401,11 @@ export default function ItemScreen() {
             >
               <Row style={{ justifyContent: 'space-between' }}>
                 <Text style={[text.body, { fontWeight: '600', flex: 1 }]}>{entryLabel(e)}</Text>
-                <Text style={text.muted}>{formatDate(e.date)}</Text>
+                {e.cost ? <Text style={[text.body, { fontWeight: '600' }]}>{formatCost(e.cost)}</Text> : null}
               </Row>
-              {meta(e) ? <Text style={text.muted}>{meta(e)}</Text> : null}
+              <Text style={text.muted}>
+                {[formatDate(e.date), e.reading !== null && m && formatReading(e.reading, m), e.shop].filter(Boolean).join(' · ')}
+              </Text>
               {e.notes ? <Text style={text.body}>{e.notes}</Text> : null}
             </Card>
           ))}

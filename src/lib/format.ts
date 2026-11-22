@@ -27,8 +27,10 @@ export type ServiceEntry = {
   cost: number | null;
   shop: string;
   notes: string;
-  /** Done while chasing a problem, not because it was due. Still counts as done; counts as a repair in spending. */
+  /** Done while chasing a problem, not because it was due. Still counts as done. Works with any kind. */
   troubleshooting?: boolean;
+  /** Service, Repair or Fee. Older entries have none; kindOf works it out. */
+  kind?: Kind;
 };
 
 /** A schedule row with its worked-out last done / next due / status (see compute in data.ts). */
@@ -203,26 +205,40 @@ export function itemIcon(it: Item): string {
   return '🔧';
 }
 
-export type Kind = 'Routine' | 'Repair';
+export const KINDS = ['Service', 'Repair', 'Fee'] as const;
+export type Kind = (typeof KINDS)[number];
+export const isKind = (v: unknown): v is Kind => typeof v === 'string' && (KINDS as readonly string[]).includes(v);
 
-/** Routine when the entry matches a scheduled service for that item (and wasn't troubleshooting), otherwise a repair / one-off. */
+/** Common fees offered when logging a Fee (alongside any fee-like scheduled rows such as Registration renewal). */
+export const FEE_NAMES = ['Registration renewal', 'Insurance', 'Property tax', 'Inspection', 'Title'];
+
+/** Names that read as a tax or fee rather than work done. ("Brake inspection" is work; "State inspection" is a fee.) */
+export const isFeeName = (name: string) =>
+  /registration|insurance|\btax|\btitle\b|license|emissions|state inspection|\bfees?\b/i.test(name);
+
+/**
+ * Service, Repair or Fee. Uses the entry's own kind when set. Older entries: fee-like names are fees,
+ * troubleshooting entries are repairs, scheduled services are services, anything else is a repair.
+ */
 export function kindOf(e: ServiceEntry, data: SheetData): Kind {
+  if (e.kind) return e.kind;
+  if (isFeeName(e.service)) return 'Fee';
   if (e.troubleshooting) return 'Repair';
-  return data.schedule.some((s) => s.item === e.item && s.service === e.service) ? 'Routine' : 'Repair';
+  return data.schedule.some((s) => s.item === e.item && s.service === e.service) ? 'Service' : 'Repair';
 }
 
-/** Spending grouped by year (newest first), with per-item and routine/repair totals. */
+export type KindTotals = { total: number; service: number; repair: number; fee: number };
+const KEY = { Service: 'service', Repair: 'repair', Fee: 'fee' } as const;
+
+/** Spending grouped by year (newest first), with per-item and service/repair/fee totals. */
 export function spendingByYear(data: SheetData) {
-  const years = new Map<
-    string,
-    { total: number; routine: number; repair: number; items: Map<string, { total: number; routine: number; repair: number }> }
-  >();
+  const years = new Map<string, KindTotals & { items: Map<string, KindTotals> }>();
   for (const e of data.log) {
     if (!e.cost) continue;
     const y = e.date.slice(0, 4) || '—';
-    const yr = years.get(y) ?? { total: 0, routine: 0, repair: 0, items: new Map() };
-    const it = yr.items.get(e.item) ?? { total: 0, routine: 0, repair: 0 };
-    const k = kindOf(e, data) === 'Routine' ? 'routine' : 'repair';
+    const yr = years.get(y) ?? { total: 0, service: 0, repair: 0, fee: 0, items: new Map() };
+    const it = yr.items.get(e.item) ?? { total: 0, service: 0, repair: 0, fee: 0 };
+    const k = KEY[kindOf(e, data)];
     yr.total += e.cost;
     yr[k] += e.cost;
     it.total += e.cost;
@@ -235,8 +251,9 @@ export function spendingByYear(data: SheetData) {
     .map(([year, v]) => ({
       year,
       total: v.total,
-      routine: v.routine,
+      service: v.service,
       repair: v.repair,
+      fee: v.fee,
       items: [...v.items.entries()].map(([item, t]) => ({ item, ...t })).sort((a, b) => b.total - a.total),
     }));
 }

@@ -1,11 +1,11 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { Card, Chip, Row, colors, text } from '../components/ui';
+import { Card, Chip, Row, colors, kindColor, text } from '../components/ui';
 import { refresh, useSheet } from '../lib/api';
-import { entryLabel, formatCost, formatDate, kindOf, nameFor, newestFirst, spendingByYear } from '../lib/format';
+import { entryLabel, formatCost, formatDate, kindOf, nameFor, newestFirst, spendingByYear, type KindTotals } from '../lib/format';
 
-/** Money spent: per year, split routine vs. repairs, then per vehicle / equipment, then the entries. */
+/** Money spent: per year, split into services, repairs and fees, then per vehicle / equipment, then the entries. */
 export default function SpendingScreen() {
   const { data, loading } = useSheet();
   const years = data ? spendingByYear(data) : [];
@@ -25,35 +25,36 @@ export default function SpendingScreen() {
       )}
       {year && data && (
         <>
+          <Text style={text.heading}>{year.year}</Text>
           <Card>
-            <Text style={text.section}>{year.year}</Text>
             <Text style={[text.h1, { fontSize: 32 }]}>{formatCost(year.total)}</Text>
-            <Bar routine={year.routine} repair={year.repair} />
-            <Row style={{ justifyContent: 'space-between' }}>
+            <Bar t={year} />
+            <Row style={{ justifyContent: 'space-between', flexWrap: 'wrap', columnGap: 8 }}>
               <Text style={text.body}>
-                <Text style={{ color: colors.primary }}>●</Text> Routine {formatCost(year.routine)}
+                <Text style={{ color: kindColor.Service }}>●</Text> Services {formatCost(year.service)}
               </Text>
               <Text style={text.body}>
-                <Text style={{ color: colors.warn }}>●</Text> Repairs {formatCost(year.repair)}
+                <Text style={{ color: kindColor.Repair }}>●</Text> Repairs {formatCost(year.repair)}
+              </Text>
+              <Text style={text.body}>
+                <Text style={{ color: kindColor.Fee }}>●</Text> Fees {formatCost(year.fee)}
               </Text>
             </Row>
           </Card>
 
-          <Text style={text.section}>By vehicle and equipment</Text>
+          <Text style={text.heading}>By vehicle and equipment</Text>
           {year.items.map((it) => (
             <Card key={it.item} onPress={() => router.push({ pathname: '/item', params: { name: it.item } })}>
               <Row style={{ justifyContent: 'space-between' }}>
                 <Text style={[text.body, { fontWeight: '600', flex: 1 }]}>{nameFor(it.item, data)}</Text>
                 <Text style={[text.body, { fontWeight: '600' }]}>{formatCost(it.total)}</Text>
               </Row>
-              <Bar routine={it.routine} repair={it.repair} scale={it.total / year.items[0].total} />
-              <Text style={text.muted}>
-                Routine {formatCost(it.routine)} · Repairs {formatCost(it.repair)}
-              </Text>
+              <Bar t={it} scale={it.total / year.items[0].total} />
+              <Text style={text.muted}>{split(it)}</Text>
             </Card>
           ))}
 
-          <Text style={text.section}>Entries</Text>
+          <Text style={text.heading}>Entries</Text>
           <Card style={{ paddingVertical: 4 }}>
             {entries.map((e, i) => (
               <Pressable
@@ -66,32 +67,44 @@ export default function SpendingScreen() {
                     {nameFor(e.item, data)} · {entryLabel(e)}
                   </Text>
                   <Text style={text.muted}>
-                    {formatDate(e.date)} · {kindOf(e, data) === 'Routine' ? 'Routine' : 'Repair'}
+                    {formatDate(e.date)} · <Text style={{ color: kindColor[kindOf(e, data)] }}>{kindOf(e, data)}</Text>
                   </Text>
                 </View>
                 <Text style={text.body}>{formatCost(e.cost)}</Text>
               </Pressable>
             ))}
           </Card>
-          {entries.some((e) => e.troubleshooting) && (
-            <Text style={text.muted}>* Done while troubleshooting, not because it was due. Counted as a repair.</Text>
-          )}
-          <Text style={text.muted}>Routine = a scheduled service. Repairs = anything else, plus anything done while troubleshooting.</Text>
+          {entries.some((e) => e.troubleshooting) && <Text style={text.muted}>* Done while troubleshooting, not because it was due.</Text>}
+          <Text style={text.muted}>
+            Services = regular upkeep. Repairs = fixing a problem. Fees = registration, insurance, taxes, inspections, title. Costs include
+            sales tax.
+          </Text>
         </>
       )}
     </ScrollView>
   );
 }
 
-/** A thin bar showing the routine vs. repair split. */
-function Bar({ routine, repair, scale = 1 }: { routine: number; repair: number; scale?: number }) {
-  const total = routine + repair;
-  if (!total) return null;
+/** "Services $X · Repairs $Y · Fees $Z", leaving out zero parts. */
+const split = (t: KindTotals) =>
+  [
+    ['Services', t.service],
+    ['Repairs', t.repair],
+    ['Fees', t.fee],
+  ]
+    .filter(([, v]) => (v as number) > 0)
+    .map(([k, v]) => `${k} ${formatCost(v as number)}`)
+    .join(' · ');
+
+/** A thin bar showing the service / repair / fee split. */
+function Bar({ t, scale = 1 }: { t: KindTotals; scale?: number }) {
+  if (!t.total) return null;
   return (
     <View style={styles.bar}>
       <View style={{ width: `${Math.max(2, scale * 100)}%`, flexDirection: 'row', height: '100%' }}>
-        {routine > 0 && <View style={{ flex: routine, backgroundColor: colors.primary }} />}
-        {repair > 0 && <View style={{ flex: repair, backgroundColor: colors.warn }} />}
+        {t.service > 0 && <View style={{ flex: t.service, backgroundColor: kindColor.Service }} />}
+        {t.repair > 0 && <View style={{ flex: t.repair, backgroundColor: kindColor.Repair }} />}
+        {t.fee > 0 && <View style={{ flex: t.fee, backgroundColor: kindColor.Fee }} />}
       </View>
     </View>
   );
