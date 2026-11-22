@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Alert, StyleSheet, Text, View } from 'react-native';
 import { Banner, Button, Chip, Field, FormScroll, Row, colors, text } from '../components/ui';
 import { deleteItem, saveItem, useSheet } from '../lib/api';
-import { displayName, isISODate, type Item, type Meter } from '../lib/format';
+import { displayName, isBill, isISODate, isVehicle, nameFor, type Item, type Meter } from '../lib/format';
 
 // Quick starting schedules for new things; edit or remove them afterwards on the item page.
 const PRESETS: Record<string, { service: string; every: number | null; everyMonths: number | null; part: string }[]> = {
@@ -17,21 +17,23 @@ const PRESETS: Record<string, { service: string; every: number | null; everyMont
   ],
   Filter: [{ service: 'Filter change', every: null, everyMonths: 6, part: '' }],
   Yearly: [{ service: 'Yearly inspection & cleaning', every: null, everyMonths: 12, part: '' }],
+  Bill: [{ service: 'Renewal', every: null, everyMonths: 12, part: '' }],
 };
 
-/** Add a new vehicle or piece of equipment, or edit one (?name=...). */
+/** Add a new vehicle, piece of equipment or bill (?type=… picks the starting type), or edit one (?name=...). */
 export default function EditItem() {
-  const { name } = useLocalSearchParams<{ name?: string }>();
+  const { name, type: startType } = useLocalSearchParams<{ name?: string; type?: string }>();
   const { data } = useSheet();
   const existing = name ? data?.items.find((i) => i.name === name) : undefined;
+  const startT = startType === 'Bill' || startType === 'Equipment' ? startType : 'Vehicle';
   const [f, setF] = useState<Item>(
     existing ?? {
       name: '',
-      type: 'Vehicle',
+      type: startT,
       year: '',
       make: '',
       model: '',
-      meter: 'miles',
+      meter: startT === 'Vehicle' ? 'miles' : '',
       reading: null,
       readingUpdated: '',
       purchased: '',
@@ -39,11 +41,12 @@ export default function EditItem() {
       notes: '',
     },
   );
-  const [preset, setPreset] = useState<string>('Vehicle');
+  const [preset, setPreset] = useState<string>(startT === 'Equipment' ? 'Filter' : startT);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const set = (patch: Partial<Item>) => setF({ ...f, ...patch });
   const isNew = !existing;
+  const policy = isBill(f);
 
   if (name && !existing) return <Text style={[text.muted, { padding: 16 }]}>{data ? 'Not found.' : 'Loading…'}</Text>;
 
@@ -92,55 +95,106 @@ export default function EditItem() {
           <Text style={text.body}>{err}</Text>
         </Banner>
       )}
-      <Field label="Short name" value={f.name} onChangeText={(v) => set({ name: v })} placeholder="e.g. Sentra, Fridge filter" />
+      <Field
+        label="Short name"
+        value={f.name}
+        onChangeText={(v) => set({ name: v })}
+        placeholder={policy ? 'e.g. Erie Auto, Property tax' : 'e.g. Sentra, Fridge filter'}
+      />
 
       <Text style={text.heading}>Type</Text>
       <Row style={styles.wrapRow}>
-        {['Vehicle', 'Equipment'].map((t) => (
+        {['Vehicle', 'Equipment', 'Bill'].map((t) => (
           <Chip
             key={t}
             label={t}
             selected={f.type === t}
             onPress={() => {
-              set({ type: t, meter: t === 'Vehicle' ? 'miles' : f.meter === 'miles' ? '' : f.meter });
-              if (isNew) setPreset(t === 'Vehicle' ? 'Vehicle' : 'Filter');
+              set({ type: t, meter: t === 'Vehicle' ? 'miles' : t === 'Bill' || f.meter === 'miles' ? '' : f.meter });
+              if (isNew) setPreset(t === 'Vehicle' ? 'Vehicle' : t === 'Bill' ? 'Bill' : 'Filter');
             }}
           />
         ))}
       </Row>
 
-      <Text style={text.heading}>Meter</Text>
-      <Row style={styles.wrapRow}>
-        {(
-          [
-            ['miles', 'Miles'],
-            ['hours', 'Hours'],
-            ['', 'None (by date only)'],
-          ] as [Meter, string][]
-        ).map(([v, label]) => (
-          <Chip key={label} label={label} selected={f.meter === v} onPress={() => set({ meter: v })} />
-        ))}
-      </Row>
-
-      <Row>
-        <View style={{ flex: 1 }}>
-          <Field label="Year (optional)" value={f.year} onChangeText={(v) => set({ year: v })} keyboardType="number-pad" />
-        </View>
-        <View style={{ flex: 2 }}>
-          <Field label="Make (optional)" value={f.make} onChangeText={(v) => set({ make: v })} />
-        </View>
-      </Row>
-      <Field label="Model (optional)" value={f.model} onChangeText={(v) => set({ model: v })} />
-      {f.type === 'Vehicle' || f.vin ? (
-        <Field label="VIN (optional)" value={f.vin} onChangeText={(v) => set({ vin: v.replace(/\s/g, '').toUpperCase() })} caps />
+      {policy ? (
+        <>
+          <Field
+            label="Company (optional)"
+            value={f.company ?? ''}
+            onChangeText={(v) => set({ company: v })}
+            placeholder="e.g. Erie Insurance"
+          />
+          <Field
+            label="Policy / account # (optional)"
+            value={f.policyNumber ?? ''}
+            onChangeText={(v) => set({ policyNumber: v.trim() })}
+            caps
+          />
+          <Field label="Agent (optional)" value={f.agent ?? ''} onChangeText={(v) => set({ agent: v })} />
+          <Field label="Agent phone (optional)" value={f.phone ?? ''} onChangeText={(v) => set({ phone: v })} keyboardType="phone-pad" />
+          <Text style={text.heading}>Covers (optional)</Text>
+          <Row style={styles.wrapRow}>
+            {(data?.items ?? []).filter(isVehicle).map((v) => (
+              <Chip
+                key={v.name}
+                label={nameFor(v.name, data!)}
+                selected={!!f.covers?.includes(v.name)}
+                onPress={() =>
+                  set({ covers: f.covers?.includes(v.name) ? f.covers.filter((c) => c !== v.name) : [...(f.covers ?? []), v.name] })
+                }
+              />
+            ))}
+          </Row>
+        </>
       ) : null}
-      <Field
-        label="Purchase date (optional)"
-        value={f.purchased}
-        onChangeText={(v) => set({ purchased: v.trim() })}
-        placeholder="2026-10-10"
-        keyboardType="numbers-and-punctuation"
-      />
+
+      {!policy && <Text style={text.heading}>Meter</Text>}
+      {!policy && (
+        <Row style={styles.wrapRow}>
+          {(
+            [
+              ['miles', 'Miles'],
+              ['hours', 'Hours'],
+              ['', 'None (by date only)'],
+            ] as [Meter, string][]
+          ).map(([v, label]) => (
+            <Chip key={label} label={label} selected={f.meter === v} onPress={() => set({ meter: v })} />
+          ))}
+        </Row>
+      )}
+
+      {!policy && (
+        <Row>
+          <View style={{ flex: 1 }}>
+            <Field label="Year (optional)" value={f.year} onChangeText={(v) => set({ year: v })} keyboardType="number-pad" />
+          </View>
+          <View style={{ flex: 2 }}>
+            <Field label="Make (optional)" value={f.make} onChangeText={(v) => set({ make: v })} />
+          </View>
+        </Row>
+      )}
+      {!policy && <Field label="Model (optional)" value={f.model} onChangeText={(v) => set({ model: v })} />}
+      {f.type === 'Vehicle' || f.vin || f.plate ? (
+        <>
+          <Field label="VIN (optional)" value={f.vin} onChangeText={(v) => set({ vin: v.replace(/\s/g, '').toUpperCase() })} caps />
+          <Field
+            label="License plate (optional)"
+            value={f.plate ?? ''}
+            onChangeText={(v) => set({ plate: v.replace(/\s/g, '').toUpperCase() })}
+            caps
+          />
+        </>
+      ) : null}
+      {!policy && (
+        <Field
+          label="Purchase date (optional)"
+          value={f.purchased}
+          onChangeText={(v) => set({ purchased: v.trim() })}
+          placeholder="2026-10-10"
+          keyboardType="numbers-and-punctuation"
+        />
+      )}
       <Field
         label="Notes"
         value={f.notes}
@@ -157,6 +211,7 @@ export default function EditItem() {
               ['Vehicle', 'Basic vehicle'],
               ['Filter', 'Filter every 6 months'],
               ['Yearly', 'Yearly service'],
+              ['Bill', 'Yearly renewal'],
               ['None', 'None'],
             ].map(([k, label]) => (
               <Chip key={k} label={label} selected={preset === k} onPress={() => setPreset(k)} />

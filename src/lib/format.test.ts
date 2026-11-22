@@ -14,6 +14,8 @@ import {
   monthlySpending,
   nameFor,
   isFeeName,
+  fuelStats,
+  billsFor,
   kindOf,
   newestFirst,
   nextDue,
@@ -396,4 +398,72 @@ test('mileage chart data', () => {
   assert.equal(c.markers.length, 1); // only the $45.50 oil change has a cost
   assert.equal(c.markers[0].reading, 196000);
   assert.equal(mileageChart('Odyssey', d, '').points.length, 3);
+});
+
+test('plate parses and unknown fields survive a save', () => {
+  const s = D.parseStore(
+    JSON.stringify({
+      items: [{ name: 'Van', plate: 'E1Y386', color: 'blue' }],
+      schedule: [{ item: 'Van', service: 'Oil', everyMonths: 6, source: 'manual' }],
+      log: [{ id: 'x', item: 'Van', service: 'Oil', date: '2026-01-01', receipt: 'r1' }],
+      readings: [{ id: 'r', item: 'Van', date: '2026-01-01', reading: 5, photo: 'p' }],
+    }),
+  );
+  assert.equal(s.items[0].plate, 'E1Y386');
+  const back = JSON.parse(D.serializeStore(s));
+  assert.equal(back.items[0].color, 'blue');
+  assert.equal(back.items[0].plate, 'E1Y386');
+  assert.equal(back.schedule[0].source, 'manual');
+  assert.equal(back.log[0].receipt, 'r1');
+  assert.equal(back.readings[0].photo, 'p');
+});
+
+test('bills: fields parse, covers follow renames, entries are fees', () => {
+  let s = D.parseStore(
+    JSON.stringify({
+      items: [
+        { name: 'Van', type: 'Vehicle', meter: 'miles' },
+        { name: 'Auto insurance', type: 'Bill', company: 'Erie', policyNumber: 'Q1', covers: ['Van'] },
+      ],
+      schedule: [{ item: 'Auto insurance', service: 'Renewal', everyMonths: 12 }],
+      log: [{ id: 'p', item: 'Auto insurance', service: 'Renewal', date: '2026-11-10', cost: 100 }],
+    }),
+  );
+  assert.equal(s.items[1].company, 'Erie');
+  assert.equal(s.items[0].company, undefined);
+  assert.deepEqual(
+    billsFor('Van', s).map((p) => p.name),
+    ['Auto insurance'],
+  );
+  assert.equal(itemIcon(s.items[1]), '🛡️');
+  assert.equal(kindOf(s.log[0], s), 'Fee');
+  s = D.saveItem(s, { ...s.items[0], name: 'Odyssey' }, 'Van');
+  assert.deepEqual(s.items[1].covers, ['Odyssey']);
+  s = D.deleteItem(s, 'Odyssey');
+  assert.deepEqual(s.items[0].covers, []);
+});
+
+test('fuel: MPG between full fills, readings, spending toggle, round-trip', () => {
+  let s = D.parseStore(JSON.stringify({ items: [{ name: 'Van', type: 'Vehicle', meter: 'miles', reading: 1000 }] }));
+  const add = (date: string, gallons: number, cost: number, reading: number | null, full = true) =>
+    (s = D.addFuel(s, { item: 'Van', date, gallons, cost, reading, full }, `${date}T12:00:00Z`));
+  add('2026-01-01', 10, 30, 1000);
+  add('2026-01-10', 5, 15, null, false); // partial, no mileage
+  add('2026-01-20', 10, 32, 1450); // 450 mi on 15 gal = 30 mpg
+  add('2026-02-01', 9, 27, 1720); // 270 mi on 9 gal = 30 mpg
+  const c = D.compute(s, '2026-02-15');
+  const st = fuelStats('Van', c, '2026-02-15')!;
+  assert.equal(st.count, 4);
+  assert.equal(st.mpg, 30);
+  assert.equal(st.price, 3);
+  assert.equal(s.items[0].reading, 1720);
+  // the first fill matches the start reading (same date and mileage), so only 2 fuel rows are added
+  assert.equal(readingHistory('Van', c).filter((r) => r.fuelId).length, 2);
+  assert.equal(spendingByYear(c)[0]?.total ?? 0, 0);
+  assert.equal(spendingByYear(c, true)[0].fuel, 104);
+  const back = D.parseStore(D.serializeStore(s));
+  assert.equal(back.fuel.length, 4);
+  assert.equal(back.fuel[1].full, false);
+  s = D.deleteFuel(s, s.fuel[0].id);
+  assert.equal(s.fuel.length, 3);
 });

@@ -50,7 +50,7 @@ const ACCENTS = ['#2E86DE', '#E67E22', '#27AE60', '#8E44AD', '#16A085', '#C0392B
 export const accentFor = (index: number) => ACCENTS[((index % ACCENTS.length) + ACCENTS.length) % ACCENTS.length];
 
 /** Spending colors by entry kind (troubleshooting circles use colors.danger). */
-export const kindColor = { Service: colors.primary, Repair: colors.warn, Fee: '#8E44AD' } as const;
+export const kindColor = { Service: colors.primary, Repair: colors.warn, Fee: '#8E44AD', Fuel: '#16A085' } as const;
 
 export const statusColor: Record<Status, string> = {
   Overdue: colors.danger,

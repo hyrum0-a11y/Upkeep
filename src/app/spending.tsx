@@ -8,7 +8,9 @@ import { entryLabel, formatCost, formatDate, kindOf, nameFor, newestFirst, spend
 /** Money spent: per year, split into services, repairs and fees, then per vehicle / equipment, then the entries. */
 export default function SpendingScreen() {
   const { data, loading } = useSheet();
-  const years = data ? spendingByYear(data) : [];
+  const [withFuel, setWithFuel] = useState(true);
+  const hasFuel = !!data?.fuel?.some((f) => f.cost);
+  const years = data ? spendingByYear(data, withFuel && hasFuel) : [];
   const [picked, setPicked] = useState<string | null>(null);
   const year = years.find((y) => y.year === picked) ?? years[0];
   const entries = data && year ? newestFirst(data.log.filter((e) => e.cost && e.date.startsWith(year.year))) : [];
@@ -16,6 +18,13 @@ export default function SpendingScreen() {
   return (
     <ScrollView contentContainerStyle={styles.wrap} refreshControl={<RefreshControl refreshing={loading} onRefresh={refresh} />}>
       {data && years.length === 0 && <Text style={text.muted}>No costs logged yet. Add a cost when you log a service or repair.</Text>}
+      {hasFuel && (
+        <Pressable onPress={() => setWithFuel(!withFuel)} accessibilityRole="checkbox" accessibilityState={{ checked: withFuel }}>
+          <Text style={text.body}>
+            <Text style={{ color: withFuel ? kindColor.Fuel : colors.muted }}>{withFuel ? '☑' : '☐'}</Text> Include fuel
+          </Text>
+        </Pressable>
+      )}
       {years.length > 1 && (
         <Row style={{ flexWrap: 'wrap', gap: 8 }}>
           {years.map((y) => (
@@ -39,6 +48,11 @@ export default function SpendingScreen() {
               <Text style={text.body}>
                 <Text style={{ color: kindColor.Fee }}>●</Text> Fees {formatCost(year.fee)}
               </Text>
+              {year.fuel > 0 && (
+                <Text style={text.body}>
+                  <Text style={{ color: kindColor.Fuel }}>●</Text> Fuel {formatCost(year.fuel)}
+                </Text>
+              )}
             </Row>
           </Card>
 
@@ -76,8 +90,8 @@ export default function SpendingScreen() {
           </Card>
           {entries.some((e) => e.troubleshooting) && <Text style={text.muted}>* Done while troubleshooting, not because it was due.</Text>}
           <Text style={text.muted}>
-            Services = regular upkeep. Repairs = fixing a problem. Fees = registration, insurance, taxes, inspections, title. Costs include
-            sales tax.
+            {withFuel && hasFuel ? 'Fuel is counted in the totals above; fill-ups are listed on each vehicle. ' : ''}Services = regular
+            upkeep. Repairs = fixing a problem. Fees = registration, insurance, taxes, inspections, title. Costs include sales tax.
           </Text>
         </>
       )}
@@ -91,6 +105,7 @@ const split = (t: KindTotals) =>
     ['Services', t.service],
     ['Repairs', t.repair],
     ['Fees', t.fee],
+    ['Fuel', t.fuel],
   ]
     .filter(([, v]) => (v as number) > 0)
     .map(([k, v]) => `${k} ${formatCost(v as number)}`)
@@ -105,6 +120,7 @@ function Bar({ t, scale = 1 }: { t: KindTotals; scale?: number }) {
         {t.service > 0 && <View style={{ flex: t.service, backgroundColor: kindColor.Service }} />}
         {t.repair > 0 && <View style={{ flex: t.repair, backgroundColor: kindColor.Repair }} />}
         {t.fee > 0 && <View style={{ flex: t.fee, backgroundColor: kindColor.Fee }} />}
+        {t.fuel > 0 && <View style={{ flex: t.fuel, backgroundColor: kindColor.Fuel }} />}
       </View>
     </View>
   );

@@ -4,7 +4,18 @@ import { Linking, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Banner, Button, Card, Row, StatusPill, accentFor, colors, text } from '../components/ui';
 import { refresh, useSheet } from '../lib/api';
-import { byUrgency, displayName, formatCost, isVehicle, monthlySpending, nameFor, nextDue, summarize, type SheetData } from '../lib/format';
+import {
+  byUrgency,
+  displayName,
+  formatCost,
+  isBill,
+  isVehicle,
+  monthlySpending,
+  nameFor,
+  nextDue,
+  summarize,
+  type SheetData,
+} from '../lib/format';
 import { checkForUpdate, installUpdate, type Update } from '../lib/update';
 
 export default function Home() {
@@ -20,7 +31,8 @@ export default function Home() {
   const meterOf = (name: string) => data?.items.find((i) => i.name === name)?.meter ?? '';
   const attention = data ? byUrgency(data.schedule).filter((s) => s.status === 'Overdue' || s.status === 'Due soon') : [];
   const vehicles = data ? data.items.filter(isVehicle) : [];
-  const equipment = data ? data.items.filter((i) => !isVehicle(i)) : [];
+  const equipment = data ? data.items.filter((i) => !isVehicle(i) && !isBill(i)) : [];
+  const bills = data ? data.items.filter(isBill) : [];
   const open = (name: string) => router.push({ pathname: '/item', params: { name } });
   const spent6mo = data ? data.items.reduce((sum, it) => sum + summarize(it, data).spent6mo, 0) : 0;
 
@@ -74,16 +86,25 @@ export default function Home() {
         <>
           <View style={styles.grid}>
             <Tile
+              third
               accent="#2E86DE"
               title="Vehicles"
               detail={`${vehicles.length} ${vehicles.length === 1 ? 'vehicle' : 'vehicles'}`}
               onPress={() => router.push({ pathname: '/list', params: { type: 'Vehicle' } })}
             />
             <Tile
+              third
               accent="#E67E22"
               title="Equipment"
               detail={`${equipment.length} ${equipment.length === 1 ? 'item' : 'items'}`}
               onPress={() => router.push({ pathname: '/list', params: { type: 'Equipment' } })}
+            />
+            <Tile
+              third
+              accent="#C0392B"
+              title="Bills"
+              detail={`${bills.length} ${bills.length === 1 ? 'bill' : 'bills'}`}
+              onPress={() => router.push({ pathname: '/list', params: { type: 'Bill' } })}
             />
             <Tile
               accent="#27AE60"
@@ -173,11 +194,28 @@ function SpendChart({ data }: { data: SheetData }) {
 }
 
 /** A big square button on the home screen. */
-function Tile({ accent, title, detail, onPress }: { accent: string; title: string; detail: string; onPress: () => void }) {
+function Tile({
+  accent,
+  title,
+  detail,
+  onPress,
+  third,
+}: {
+  accent: string;
+  title: string;
+  detail: string;
+  onPress: () => void;
+  third?: boolean;
+}) {
   return (
     <Pressable
       onPress={onPress}
-      style={({ pressed }) => [styles.tile, { borderTopColor: accent }, pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] }]}
+      style={({ pressed }) => [
+        styles.tile,
+        third && { flexBasis: '30%' },
+        { borderTopColor: accent },
+        pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] },
+      ]}
       accessibilityRole="button"
     >
       <Text style={text.h2}>{title}</Text>
