@@ -3,14 +3,16 @@ import { RefreshControl, ScrollView, StyleSheet, Text } from 'react-native';
 import { ItemRow } from '../components/ItemRow';
 import { Button, text } from '../components/ui';
 import { refresh, useSheet } from '../lib/api';
-import { isVehicle } from '../lib/format';
+import { isPolicy, isVehicle } from '../lib/format';
 
 /** All vehicles (?type=Vehicle) or all equipment (?type=Equipment). */
 export default function ListScreen() {
   const { type } = useLocalSearchParams<{ type?: string }>();
   const { data, loading } = useSheet();
   const vehicles = type === 'Vehicle';
-  const items = data ? data.items.filter((i) => isVehicle(i) === vehicles) : [];
+  const items = data ? data.items.filter((i) => !isPolicy(i) && isVehicle(i) === vehicles) : [];
+  // Insurance and other policies live with the vehicles.
+  const policies = data && vehicles ? data.items.filter(isPolicy) : [];
   return (
     <ScrollView contentContainerStyle={styles.wrap} refreshControl={<RefreshControl refreshing={loading} onRefresh={refresh} />}>
       <Stack.Screen options={{ title: vehicles ? 'Vehicles' : 'Equipment' }} />
@@ -19,7 +21,12 @@ export default function ListScreen() {
         items.map((it) => (
           <ItemRow key={it.name} it={it} data={data} onPress={() => router.push({ pathname: '/item', params: { name: it.name } })} />
         ))}
-      <Button label={vehicles ? '＋ Add a vehicle' : '＋ Add equipment'} variant="outline" onPress={() => router.push('/edit')} />
+      {data && policies.length > 0 && <Text style={text.heading}>Policies</Text>}
+      {data &&
+        policies.map((it) => (
+          <ItemRow key={it.name} it={it} data={data} onPress={() => router.push({ pathname: '/item', params: { name: it.name } })} />
+        ))}
+      <Button label={vehicles ? '＋ Add a vehicle or policy' : '＋ Add equipment'} variant="outline" onPress={() => router.push('/edit')} />
     </ScrollView>
   );
 }

@@ -1,6 +1,6 @@
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { Alert, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { Alert, Linking, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { Banner, Button, Card, Field, FormScroll, Row, StatusPill, colors, text } from '../components/ui';
 import { MileageChart } from '../components/MileageChart';
 import { deleteReading, deleteSchedule, refresh, saveSchedule, setReading, updateReading, updateService, useSheet } from '../lib/api';
@@ -12,6 +12,9 @@ import {
   interval,
   displayName,
   itemIcon,
+  isPolicy,
+  policiesFor,
+  nameFor,
   itemTitle,
   meterLabel,
   newestFirst,
@@ -190,10 +193,74 @@ export default function ItemScreen() {
         <Text style={text.muted}>{[it.plate && `Plate ${it.plate}`, it.vin && `VIN ${it.vin}`].filter(Boolean).join(' · ')}</Text>
       ) : null}
 
+      {policiesFor(it.name, data).map((p) => (
+        <Text
+          key={p.name}
+          style={text.muted}
+          onPress={() => router.push({ pathname: '/item', params: { name: p.name } })}
+          accessibilityRole="link"
+        >
+          🛡️ {[p.company || displayName(p), p.policyNumber].filter(Boolean).join(' · ')}
+          <Text style={{ color: colors.primary }}> ›</Text>
+        </Text>
+      ))}
+
       {(msg || error) && (
         <Banner tone="warn">
           <Text style={text.body}>{msg || error}</Text>
         </Banner>
+      )}
+
+      {isPolicy(it) && (
+        <>
+          <Text style={text.heading}>Policy</Text>
+          <Card style={{ gap: 4 }}>
+            {(
+              [
+                ['Company', it.company],
+                ['Policy #', it.policyNumber],
+                ['Agent', it.agent],
+              ] as const
+            )
+              .filter(([, v]) => v)
+              .map(([k, v]) => (
+                <Row key={k} style={{ justifyContent: 'space-between' }}>
+                  <Text style={text.muted}>{k}</Text>
+                  <Text style={[text.body, { flexShrink: 1, textAlign: 'right' }]} selectable>
+                    {v}
+                  </Text>
+                </Row>
+              ))}
+            {it.phone ? (
+              <Row style={{ justifyContent: 'space-between' }}>
+                <Text style={text.muted}>Phone</Text>
+                <Text
+                  style={[text.body, { color: colors.primary }]}
+                  onPress={() => Linking.openURL(`tel:${it.phone!.replace(/[^\d+]/g, '')}`)}
+                >
+                  {it.phone}
+                </Text>
+              </Row>
+            ) : null}
+            {it.covers?.length ? (
+              <Row style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <Text style={text.muted}>Covers</Text>
+                <View style={{ flexShrink: 1, alignItems: 'flex-end' }}>
+                  {it.covers.map((c) => (
+                    <Text
+                      key={c}
+                      style={[text.body, { color: colors.primary }]}
+                      onPress={() => router.push({ pathname: '/item', params: { name: c } })}
+                    >
+                      {nameFor(c, data)}
+                    </Text>
+                  ))}
+                </View>
+              </Row>
+            ) : null}
+            {it.notes ? <Text style={[text.muted, { marginTop: 4 }]}>{it.notes}</Text> : null}
+          </Card>
+        </>
       )}
 
       <Text style={text.heading}>Summary</Text>

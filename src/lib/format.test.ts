@@ -14,6 +14,7 @@ import {
   monthlySpending,
   nameFor,
   isFeeName,
+  policiesFor,
   kindOf,
   newestFirst,
   nextDue,
@@ -414,4 +415,29 @@ test('plate parses and unknown fields survive a save', () => {
   assert.equal(back.schedule[0].source, 'manual');
   assert.equal(back.log[0].receipt, 'r1');
   assert.equal(back.readings[0].photo, 'p');
+});
+
+test('policies: fields parse, covers follow renames, renewal is a fee', () => {
+  let s = D.parseStore(
+    JSON.stringify({
+      items: [
+        { name: 'Van', type: 'Vehicle', meter: 'miles' },
+        { name: 'Auto insurance', type: 'Policy', company: 'Erie', policyNumber: 'Q1', covers: ['Van'] },
+      ],
+      schedule: [{ item: 'Auto insurance', service: 'Policy renewal', everyMonths: 12 }],
+      log: [{ id: 'p', item: 'Auto insurance', service: 'Policy renewal', date: '2026-11-10', cost: 100 }],
+    }),
+  );
+  assert.equal(s.items[1].company, 'Erie');
+  assert.equal(s.items[0].company, undefined);
+  assert.deepEqual(
+    policiesFor('Van', s).map((p) => p.name),
+    ['Auto insurance'],
+  );
+  assert.equal(itemIcon(s.items[1]), '🛡️');
+  assert.equal(kindOf(s.log[0], s), 'Fee');
+  s = D.saveItem(s, { ...s.items[0], name: 'Odyssey' }, 'Van');
+  assert.deepEqual(s.items[1].covers, ['Odyssey']);
+  s = D.deleteItem(s, 'Odyssey');
+  assert.deepEqual(s.items[0].covers, []);
 });

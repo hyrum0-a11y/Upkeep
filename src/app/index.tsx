@@ -4,7 +4,18 @@ import { Linking, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Banner, Button, Card, Row, StatusPill, accentFor, colors, text } from '../components/ui';
 import { refresh, useSheet } from '../lib/api';
-import { byUrgency, displayName, formatCost, isVehicle, monthlySpending, nameFor, nextDue, summarize, type SheetData } from '../lib/format';
+import {
+  byUrgency,
+  displayName,
+  formatCost,
+  isPolicy,
+  isVehicle,
+  monthlySpending,
+  nameFor,
+  nextDue,
+  summarize,
+  type SheetData,
+} from '../lib/format';
 import { checkForUpdate, installUpdate, type Update } from '../lib/update';
 
 export default function Home() {
@@ -20,7 +31,7 @@ export default function Home() {
   const meterOf = (name: string) => data?.items.find((i) => i.name === name)?.meter ?? '';
   const attention = data ? byUrgency(data.schedule).filter((s) => s.status === 'Overdue' || s.status === 'Due soon') : [];
   const vehicles = data ? data.items.filter(isVehicle) : [];
-  const equipment = data ? data.items.filter((i) => !isVehicle(i)) : [];
+  const equipment = data ? data.items.filter((i) => !isVehicle(i) && !isPolicy(i)) : [];
   const open = (name: string) => router.push({ pathname: '/item', params: { name } });
   const spent6mo = data ? data.items.reduce((sum, it) => sum + summarize(it, data).spent6mo, 0) : 0;
 

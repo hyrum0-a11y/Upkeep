@@ -46,10 +46,36 @@ type Obj = Record<string, unknown>;
 const list = (v: unknown): Obj[] => (Array.isArray(v) ? (v.filter((x) => x && typeof x === 'object') as Obj[]) : []);
 /** Fields this version doesn't know about, kept so saving from the app never erases data added by hand or by a newer version. */
 const extras = (r: Obj, known: string[]): Obj => Object.fromEntries(Object.entries(r).filter(([k]) => !known.includes(k)));
-const ITEM_KEYS = ['name', 'type', 'year', 'make', 'model', 'meter', 'reading', 'readingUpdated', 'purchased', 'vin', 'plate', 'notes'];
+const ITEM_KEYS = [
+  'name',
+  'type',
+  'year',
+  'make',
+  'model',
+  'meter',
+  'reading',
+  'readingUpdated',
+  'purchased',
+  'vin',
+  'plate',
+  'notes',
+  'company',
+  'policyNumber',
+  'agent',
+  'phone',
+  'covers',
+];
 const SCHEDULE_KEYS = ['item', 'service', 'every', 'everyMonths', 'part'];
 const LOG_KEYS = ['id', 'date', 'item', 'reading', 'service', 'cost', 'shop', 'notes', 'entered', 'troubleshooting', 'kind'];
 const READING_KEYS = ['id', 'item', 'date', 'reading'];
+
+/** Policy fields, only when present so other items stay lean. */
+function policyFields(r: Obj) {
+  const out: { company?: string; policyNumber?: string; agent?: string; phone?: string; covers?: string[] } = {};
+  for (const k of ['company', 'policyNumber', 'agent', 'phone'] as const) if (str(r[k])) out[k] = str(r[k]);
+  if (Array.isArray(r.covers)) out.covers = r.covers.map(str).filter(Boolean);
+  return out;
+}
 
 /** Parse upkeep.json, tolerating hand edits (missing fields, numbers typed as text). */
 export function parseStore(json: string): Store {
@@ -76,6 +102,7 @@ export function parseStore(json: string): Store {
         vin: str(r.vin),
         plate: str(r.plate),
         notes: str(r.notes),
+        ...policyFields(r),
       }))
       .filter((i) => i.name),
     schedule: list(raw.schedule)
@@ -261,7 +288,9 @@ export function saveItem(s: Store, item: Item, oldName?: string): Store {
   const rename = <T extends { item: string }>(r: T): T => (r.item === oldName ? { ...r, item: name } : r);
   return {
     ...s,
-    items: s.items.map((i) => (i.name === oldName ? next : i)),
+    items: s.items.map((i) =>
+      i.name === oldName ? next : i.covers?.includes(oldName) ? { ...i, covers: i.covers.map((c) => (c === oldName ? name : c)) } : i,
+    ),
     schedule: s.schedule.map(rename),
     log: s.log.map(rename),
     readings: s.readings.map(rename),
@@ -270,7 +299,13 @@ export function saveItem(s: Store, item: Item, oldName?: string): Store {
 
 /** Remove an item and its schedule. Its log entries stay, so history isn't lost. */
 export function deleteItem(s: Store, name: string): Store {
-  return { ...s, items: s.items.filter((i) => i.name !== name), schedule: s.schedule.filter((r) => r.item !== name) };
+  return {
+    ...s,
+    items: s.items
+      .filter((i) => i.name !== name)
+      .map((i) => (i.covers?.includes(name) ? { ...i, covers: i.covers.filter((c) => c !== name) } : i)),
+    schedule: s.schedule.filter((r) => r.item !== name),
+  };
 }
 
 /** Add or update a schedule row. `oldService` is its current name when editing. */

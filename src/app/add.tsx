@@ -11,6 +11,7 @@ import {
   formatReading,
   isFeeName,
   isISODate,
+  isPolicy,
   kindOf,
   parseNumber,
   toISODate,
@@ -29,7 +30,13 @@ export default function AddService() {
   const [item, setItem] = useState(old?.item ?? params.item ?? (items.length === 1 ? items[0].name : ''));
   // Preselect the likely type: the entry's own, a fee-sounding service, Repair when asked, else Service.
   const [kind, setKind] = useState<Kind>(
-    old && data ? kindOf(old, data) : params.repair ? 'Repair' : params.service && isFeeName(params.service) ? 'Fee' : 'Service',
+    old && data
+      ? kindOf(old, data)
+      : params.repair
+        ? 'Repair'
+        : (params.service && isFeeName(params.service)) || items.some((i) => i.name === params.item && isPolicy(i))
+          ? 'Fee'
+          : 'Service',
   );
   /** Names offered as chips for a type: scheduled services (fee-like ones under Fee) plus common fees. */
   const choicesFor = (it: string, k: Kind) => {

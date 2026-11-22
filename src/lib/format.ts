@@ -17,6 +17,12 @@ export type Item = {
   purchased: string; // yyyy-MM-dd or ''
   vin: string;
   plate?: string; // license plate
+  // Policies (type "Policy"): insurance and the like. One policy can cover several items.
+  company?: string;
+  policyNumber?: string;
+  agent?: string;
+  phone?: string;
+  covers?: string[]; // item names this policy covers
 };
 
 export type ServiceEntry = {
@@ -79,6 +85,9 @@ export function perMonth(item: string, data: SheetData): number | null {
 }
 
 export const isVehicle = (it: Item) => it.type.toLowerCase() === 'vehicle';
+export const isPolicy = (it: Item) => it.type.toLowerCase() === 'policy';
+/** Policies that list this item under covers. */
+export const policiesFor = (name: string, data: { items: Item[] }) => data.items.filter((p) => isPolicy(p) && p.covers?.includes(name));
 
 /** "Odometer" / "Hour meter" for the reading's label. */
 export function meterLabel(m: Meter): string {
@@ -193,6 +202,7 @@ export function itemTitle(it: Item): string {
 /** A simple icon for an item, guessed from its type and name. */
 export function itemIcon(it: Item): string {
   const s = `${it.name} ${it.make} ${it.model}`.toLowerCase();
+  if (isPolicy(it)) return '🛡️';
   if (isVehicle(it)) {
     if (/silverado|truck|pickup|f-?150|ram|tacoma|tundra|sierra/.test(s)) return '🛻';
     if (/odyssey|van|sienna|caravan|pacifica/.test(s)) return '🚐';
@@ -215,7 +225,7 @@ export const FEE_NAMES = ['Registration renewal', 'Insurance', 'Property tax', '
 
 /** Names that read as a tax or fee rather than work done. ("Brake inspection" is work; "State inspection" is a fee.) */
 export const isFeeName = (name: string) =>
-  /registration|insurance|\btax|\btitle\b|license|emissions|state inspection|\bfees?\b/i.test(name);
+  /registration|insurance|\btax|\btitle\b|license|emissions|state inspection|\bfees?\b|\bpolicy\b|premium/i.test(name);
 
 /**
  * Service, Repair or Fee. Uses the entry's own kind when set. Older entries: fee-like names are fees,
