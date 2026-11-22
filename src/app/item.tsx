@@ -99,7 +99,6 @@ export default function ItemScreen() {
     } else go();
   };
 
-
   const details = (s: ScheduleItem) => [interval(s, m).replace(/^every/, 'Every'), s.part].filter(Boolean);
 
   // Open Log service with this service picked and the current reading filled in.
