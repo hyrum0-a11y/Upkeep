@@ -114,7 +114,7 @@ export default function ItemScreen() {
     });
 
   const renderService = (s: (typeof schedule)[number], i: number) => (
-    <View key={s.service} style={i > 0 && styles.svcDivider}>
+    <View key={s.service} style={[styles.svcCard, open === s.service && { borderColor: colors.primary }]}>
       <Pressable
         onPress={() => setOpen(open === s.service ? null : s.service)}
         style={({ pressed }) => [styles.svcRow, pressed && { opacity: 0.6 }]}
@@ -122,7 +122,10 @@ export default function ItemScreen() {
         accessibilityState={{ expanded: open === s.service }}
       >
         <View style={{ flex: 1 }}>
-          <Text style={[text.body, { fontWeight: '600' }]}>{s.service}</Text>
+          <Text style={[text.body, { fontWeight: '600' }]}>
+            {s.service}
+            {history.find((e) => e.service === s.service)?.troubleshooting ? ' *' : ''}
+          </Text>
           <Text style={text.muted} numberOfLines={1}>
             {s.lastDone
               ? `Last: ${formatDate(s.lastDone)}${s.lastReading !== null && m ? ` at ${formatReading(s.lastReading, m)}` : ''}`
@@ -133,6 +136,7 @@ export default function ItemScreen() {
           </Text>
         </View>
         <StatusPill status={s.status} />
+        <Text style={styles.chevron}>{open === s.service ? '⌃' : '⌄'}</Text>
       </Pressable>
       {open === s.service && (
         <View style={{ paddingBottom: 10, gap: 4 }}>
@@ -348,7 +352,7 @@ export default function ItemScreen() {
           }
         />
       ) : null}
-      {logged.length > 0 && <Card style={{ paddingVertical: 4 }}>{logged.map(renderService)}</Card>}
+      {logged.map(renderService)}
       {neverLogged.length > 0 && (
         <>
           <Pressable
@@ -362,7 +366,7 @@ export default function ItemScreen() {
           </Pressable>
           {showNever && (
             <>
-              <Card style={{ paddingVertical: 4 }}>{neverLogged.map(renderService)}</Card>
+              {neverLogged.map(renderService)}
               <Text
                 style={{ color: colors.primary, fontSize: 15 }}
                 onPress={() => router.push({ pathname: '/starting', params: { item: it.name } })}
@@ -373,7 +377,9 @@ export default function ItemScreen() {
           )}
         </>
       )}
-      <Text style={text.muted}>Tap a service for details, to log it, or to edit its schedule. Tap a history entry to fix it.</Text>
+      <Text style={text.muted}>
+        Tap a service to see its details, log it as done, or change its schedule. Tap a history entry to fix it.
+      </Text>
       {showAdd ? (
         <ScheduleForm
           meter={m}
@@ -564,5 +570,17 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   svcRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10 },
-  svcDivider: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
+  svcCard: {
+    backgroundColor: colors.card,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: 14,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOpacity: 0.12,
+    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 1 },
+  },
+  chevron: { color: colors.primary, fontSize: 20, width: 18, textAlign: 'center' },
 });
