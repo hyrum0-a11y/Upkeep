@@ -94,7 +94,7 @@ export default function EditItem() {
       )}
       <Field label="Short name" value={f.name} onChangeText={(v) => set({ name: v })} placeholder="e.g. Sentra, Fridge filter" />
 
-      <Text style={text.section}>Type</Text>
+      <Text style={text.heading}>Type</Text>
       <Row style={styles.wrapRow}>
         {['Vehicle', 'Equipment'].map((t) => (
           <Chip
@@ -109,7 +109,7 @@ export default function EditItem() {
         ))}
       </Row>
 
-      <Text style={text.section}>Meter</Text>
+      <Text style={text.heading}>Meter</Text>
       <Row style={styles.wrapRow}>
         {(
           [
@@ -151,7 +151,7 @@ export default function EditItem() {
 
       {isNew && (
         <>
-          <Text style={text.section}>Starting schedule</Text>
+          <Text style={text.heading}>Starting schedule</Text>
           <Row style={styles.wrapRow}>
             {[
               ['Vehicle', 'Basic vehicle'],

@@ -66,9 +66,9 @@ export function MileageChart({ item, data, meter }: { item: string; data: SheetD
   const sel = markers.find((mk) => mk.entry.id === picked);
 
   return (
-    <Card style={{ gap: 6 }}>
-      <Row style={{ justifyContent: 'space-between' }}>
-        <Text style={text.section}>Mileage & spending</Text>
+    <>
+      <Row style={{ justifyContent: 'space-between', marginTop: 10, marginBottom: -4, minHeight: 20 }}>
+        <Text style={[text.section, { marginTop: 0 }]}>Mileage & spending</Text>
         {ranges.length > 0 && (
           <Row style={{ gap: 6 }}>
             {ranges.map((k) => (
@@ -77,93 +77,95 @@ export function MileageChart({ item, data, meter }: { item: string; data: SheetD
           </Row>
         )}
       </Row>
-      {points.length + markers.length === 0 ? (
-        <Text style={text.muted}>No readings in this range yet.</Text>
-      ) : (
-        <View onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
-          {width > 0 && (
-            <Svg width={width} height={H}>
-              <Line
-                x1={PAD.left}
-                x2={width - PAD.right}
-                y1={y(hi)}
-                y2={y(hi)}
-                stroke={colors.border}
-                strokeWidth={1}
-                strokeDasharray="3,3"
-              />
-              <Line
-                x1={PAD.left}
-                x2={width - PAD.right}
-                y1={y(lo)}
-                y2={y(lo)}
-                stroke={colors.border}
-                strokeWidth={1}
-                strokeDasharray="3,3"
-              />
-              {points.length > 1 && (
-                <Polyline
-                  points={points.map((p) => `${x(p.date)},${y(p.reading)}`).join(' ')}
-                  fill="none"
-                  stroke={colors.primary}
-                  strokeWidth={2}
+      <Card style={{ gap: 6 }}>
+        {points.length + markers.length === 0 ? (
+          <Text style={text.muted}>No readings in this range yet.</Text>
+        ) : (
+          <View onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
+            {width > 0 && (
+              <Svg width={width} height={H}>
+                <Line
+                  x1={PAD.left}
+                  x2={width - PAD.right}
+                  y1={y(hi)}
+                  y2={y(hi)}
+                  stroke={colors.border}
+                  strokeWidth={1}
+                  strokeDasharray="3,3"
                 />
-              )}
-              {points.map((p) => (
-                <Circle key={p.id} cx={x(p.date)} cy={y(p.reading)} r={2.5} fill={colors.primary} />
-              ))}
-              {markers.map((mk) => {
-                const color = mk.entry.troubleshooting ? colors.danger : kindColor[kindOf(mk.entry, data)];
-                const r = radius(mk.entry.cost ?? 0);
-                const id = mk.entry.id;
-                return [
-                  <Circle
-                    key={`${id}-c`}
-                    cx={x(mk.entry.date)}
-                    cy={y(mk.reading)}
-                    r={r}
-                    fill={color}
-                    fillOpacity={picked === id ? 0.8 : 0.4}
-                    stroke={color}
-                    strokeWidth={picked === id ? 2 : 1}
-                  />,
-                  <Circle
-                    key={`${id}-hit`}
-                    cx={x(mk.entry.date)}
-                    cy={y(mk.reading)}
-                    r={Math.max(r, 14)}
-                    fill="transparent"
-                    onPress={() => setPicked(picked === id ? null : id)}
-                  />,
-                ];
-              })}
-            </Svg>
-          )}
-          {width > 0 && (
-            <>
-              <Text style={[styles.yLabel, { top: y(hi) - 7 }]}>{kLabel(hi)}</Text>
-              {hi !== lo && <Text style={[styles.yLabel, { top: y(lo) - 7 }]}>{kLabel(lo)}</Text>}
-            </>
-          )}
-          <Row style={{ justifyContent: 'space-between', paddingLeft: PAD.left }}>
-            <Text style={styles.xLabel}>{formatDate(new Date(t0).toISOString())}</Text>
-            <Text style={styles.xLabel}>{today}</Text>
-          </Row>
-        </View>
-      )}
-      {sel ? (
-        <Text style={text.body} onPress={() => sel.entry.id && router.push({ pathname: '/add', params: { id: sel.entry.id } })}>
-          {formatDate(sel.entry.date)} · {entryLabel(sel.entry)} ({kindOf(sel.entry, data)}) · {formatCost(sel.entry.cost)}
-          {sel.entry.reading !== null ? ` · ${formatReading(sel.entry.reading, meter)}` : ''}
-          <Text style={{ color: colors.primary }}> Open ›</Text>
-        </Text>
-      ) : markers.length ? (
-        <Text style={styles.legend} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
-          Size = cost · <Text style={{ color: kindColor.Service }}>●</Text> service <Text style={{ color: kindColor.Repair }}>●</Text>{' '}
-          repair <Text style={{ color: kindColor.Fee }}>●</Text> fee <Text style={{ color: colors.danger }}>●</Text> troubleshooting · tap
-        </Text>
-      ) : null}
-    </Card>
+                <Line
+                  x1={PAD.left}
+                  x2={width - PAD.right}
+                  y1={y(lo)}
+                  y2={y(lo)}
+                  stroke={colors.border}
+                  strokeWidth={1}
+                  strokeDasharray="3,3"
+                />
+                {points.length > 1 && (
+                  <Polyline
+                    points={points.map((p) => `${x(p.date)},${y(p.reading)}`).join(' ')}
+                    fill="none"
+                    stroke={colors.primary}
+                    strokeWidth={2}
+                  />
+                )}
+                {points.map((p) => (
+                  <Circle key={p.id} cx={x(p.date)} cy={y(p.reading)} r={2.5} fill={colors.primary} />
+                ))}
+                {markers.map((mk) => {
+                  const color = mk.entry.troubleshooting ? colors.danger : kindColor[kindOf(mk.entry, data)];
+                  const r = radius(mk.entry.cost ?? 0);
+                  const id = mk.entry.id;
+                  return [
+                    <Circle
+                      key={`${id}-c`}
+                      cx={x(mk.entry.date)}
+                      cy={y(mk.reading)}
+                      r={r}
+                      fill={color}
+                      fillOpacity={picked === id ? 0.8 : 0.4}
+                      stroke={color}
+                      strokeWidth={picked === id ? 2 : 1}
+                    />,
+                    <Circle
+                      key={`${id}-hit`}
+                      cx={x(mk.entry.date)}
+                      cy={y(mk.reading)}
+                      r={Math.max(r, 14)}
+                      fill="transparent"
+                      onPress={() => setPicked(picked === id ? null : id)}
+                    />,
+                  ];
+                })}
+              </Svg>
+            )}
+            {width > 0 && (
+              <>
+                <Text style={[styles.yLabel, { top: y(hi) - 7 }]}>{kLabel(hi)}</Text>
+                {hi !== lo && <Text style={[styles.yLabel, { top: y(lo) - 7 }]}>{kLabel(lo)}</Text>}
+              </>
+            )}
+            <Row style={{ justifyContent: 'space-between', paddingLeft: PAD.left }}>
+              <Text style={styles.xLabel}>{formatDate(new Date(t0).toISOString())}</Text>
+              <Text style={styles.xLabel}>{today}</Text>
+            </Row>
+          </View>
+        )}
+        {sel ? (
+          <Text style={text.body} onPress={() => sel.entry.id && router.push({ pathname: '/add', params: { id: sel.entry.id } })}>
+            {formatDate(sel.entry.date)} · {entryLabel(sel.entry)} ({kindOf(sel.entry, data)}) · {formatCost(sel.entry.cost)}
+            {sel.entry.reading !== null ? ` · ${formatReading(sel.entry.reading, meter)}` : ''}
+            <Text style={{ color: colors.primary }}> Open ›</Text>
+          </Text>
+        ) : markers.length ? (
+          <Text style={styles.legend} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
+            Size = cost · <Text style={{ color: kindColor.Service }}>●</Text> service <Text style={{ color: kindColor.Repair }}>●</Text>{' '}
+            repair <Text style={{ color: kindColor.Fee }}>●</Text> fee <Text style={{ color: colors.danger }}>●</Text> troubleshooting · tap
+          </Text>
+        ) : null}
+      </Card>
+    </>
   );
 }
 

@@ -98,7 +98,7 @@ export default function AddService() {
         </Banner>
       )}
 
-      <Text style={text.section}>For</Text>
+      <Text style={text.heading}>For</Text>
       <Row style={styles.wrapRow}>
         {items.map((i) => (
           <Chip
@@ -115,7 +115,7 @@ export default function AddService() {
 
       {item ? (
         <>
-          <Text style={text.section}>Type</Text>
+          <Text style={text.heading}>Type</Text>
           <Row style={styles.wrapRow}>
             {KINDS.map((k) => (
               <Chip
@@ -153,7 +153,7 @@ export default function AddService() {
         </>
       ) : null}
 
-      <Text style={text.section}>Details</Text>
+      <Text style={text.heading}>Details</Text>
       <Row style={styles.wrapRow}>
         <Chip label="Today" selected={date === toISODate(new Date())} onPress={() => setDate(toISODate(new Date()))} />
         <Chip label="Yesterday" selected={date === yesterday} onPress={() => setDate(yesterday)} />

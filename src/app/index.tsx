@@ -96,7 +96,7 @@ export default function Home() {
 
           <SpendChart data={data} />
 
-          <Text style={text.section}>Overdue & due soon</Text>
+          <Text style={text.heading}>Overdue & due soon</Text>
           {attention.length === 0 ? (
             <Text style={text.muted}>Nothing overdue or due soon. Services with no record yet can't come due.</Text>
           ) : (
@@ -139,34 +139,36 @@ function SpendChart({ data }: { data: SheetData }) {
   const shown = data.items.map((it, i) => ({ it, color: accentFor(i) })).filter(({ it }) => months.some((m) => m.byItem[it.name]));
   const short = (n: number) => (n >= 1000 ? `$${(n / 1000).toFixed(1)}k` : `$${Math.round(n)}`);
   return (
-    <Card>
-      <Text style={text.section}>Monthly spending</Text>
-      <View style={styles.chart}>
-        {months.map((m) => (
-          <View key={m.month} style={styles.col}>
-            <Text style={styles.colTotal} numberOfLines={1} adjustsFontSizeToFit>
-              {m.total ? short(m.total) : ''}
-            </Text>
-            <View style={{ height: CHART_H, justifyContent: 'flex-end', width: '70%' }}>
-              {shown
-                .filter(({ it }) => m.byItem[it.name])
-                .map(({ it, color }) => (
-                  <View key={it.name} style={{ height: (m.byItem[it.name] / max) * CHART_H, backgroundColor: color }} />
-                ))}
+    <>
+      <Text style={text.heading}>Monthly spending</Text>
+      <Card>
+        <View style={styles.chart}>
+          {months.map((m) => (
+            <View key={m.month} style={styles.col}>
+              <Text style={styles.colTotal} numberOfLines={1} adjustsFontSizeToFit>
+                {m.total ? short(m.total) : ''}
+              </Text>
+              <View style={{ height: CHART_H, justifyContent: 'flex-end', width: '70%' }}>
+                {shown
+                  .filter(({ it }) => m.byItem[it.name])
+                  .map(({ it, color }) => (
+                    <View key={it.name} style={{ height: (m.byItem[it.name] / max) * CHART_H, backgroundColor: color }} />
+                  ))}
+              </View>
+              <Text style={styles.colLabel}>{MONTH_ABBR[Number(m.month.slice(5)) - 1]}</Text>
             </View>
-            <Text style={styles.colLabel}>{MONTH_ABBR[Number(m.month.slice(5)) - 1]}</Text>
-          </View>
-        ))}
-      </View>
-      <View style={styles.legend}>
-        {shown.map(({ it, color }) => (
-          <Row key={it.name} style={{ gap: 6 }}>
-            <View style={[styles.swatch, { backgroundColor: color }]} />
-            <Text style={text.muted}>{displayName(it)}</Text>
-          </Row>
-        ))}
-      </View>
-    </Card>
+          ))}
+        </View>
+        <View style={styles.legend}>
+          {shown.map(({ it, color }) => (
+            <Row key={it.name} style={{ gap: 6 }}>
+              <View style={[styles.swatch, { backgroundColor: color }]} />
+              <Text style={text.muted}>{displayName(it)}</Text>
+            </Row>
+          ))}
+        </View>
+      </Card>
+    </>
   );
 }
 
@@ -189,7 +191,7 @@ function Tile({ accent, title, detail, onPress }: { accent: string; title: strin
 const styles = StyleSheet.create({
   wrap: { padding: 16, gap: 12 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  chart: { flexDirection: 'row', alignItems: 'flex-end', gap: 2, marginTop: 4 },
+  chart: { flexDirection: 'row', alignItems: 'flex-end', gap: 2 },
   col: { flex: 1, alignItems: 'center', gap: 2 },
   colTotal: { fontSize: 10, color: colors.muted },
   colLabel: { fontSize: 11, color: colors.muted },

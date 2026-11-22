@@ -25,8 +25,8 @@ export default function SpendingScreen() {
       )}
       {year && data && (
         <>
+          <Text style={text.heading}>{year.year}</Text>
           <Card>
-            <Text style={text.section}>{year.year}</Text>
             <Text style={[text.h1, { fontSize: 32 }]}>{formatCost(year.total)}</Text>
             <Bar t={year} />
             <Row style={{ justifyContent: 'space-between', flexWrap: 'wrap', columnGap: 8 }}>
@@ -42,7 +42,7 @@ export default function SpendingScreen() {
             </Row>
           </Card>
 
-          <Text style={text.section}>By vehicle and equipment</Text>
+          <Text style={text.heading}>By vehicle and equipment</Text>
           {year.items.map((it) => (
             <Card key={it.item} onPress={() => router.push({ pathname: '/item', params: { name: it.item } })}>
               <Row style={{ justifyContent: 'space-between' }}>
@@ -54,7 +54,7 @@ export default function SpendingScreen() {
             </Card>
           ))}
 
-          <Text style={text.section}>Entries</Text>
+          <Text style={text.heading}>Entries</Text>
           <Card style={{ paddingVertical: 4 }}>
             {entries.map((e, i) => (
               <Pressable

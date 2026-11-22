@@ -69,7 +69,7 @@ export default function SettingsScreen() {
 
   return (
     <FormScroll contentContainerStyle={styles.wrap}>
-      <Text style={text.section}>Data on GitHub</Text>
+      <Text style={text.heading}>Data on GitHub</Text>
       <Text style={text.muted}>
         The private repo that holds upkeep.json, and a fine-grained token for just that repo (Contents: Read and write). Stored only on this
         phone. See the README for how to make the token.
@@ -83,7 +83,7 @@ export default function SettingsScreen() {
         </Banner>
       )}
 
-      <Text style={text.section}>Reminders</Text>
+      <Text style={text.heading}>Reminders</Text>
       <View style={styles.switchRow}>
         <Text style={[text.body, { flex: 1 }]}>Notify me a week before and on the day a service is due</Text>
         <Switch value={reminders} onValueChange={toggleReminders} trackColor={{ true: colors.primary }} />
@@ -95,7 +95,7 @@ export default function SettingsScreen() {
         </Banner>
       ) : null}
 
-      <Text style={text.section}>About</Text>
+      <Text style={text.heading}>About</Text>
       <Text style={text.muted}>Upkeep · build {BUILD_NUMBER || 'dev'}</Text>
     </FormScroll>
   );

@@ -178,6 +178,16 @@ export const text = StyleSheet.create({
   body: { fontSize: 16, color: colors.text },
   muted: { fontSize: 14, color: colors.muted },
   section: { fontSize: 13, fontWeight: '700', color: colors.muted, textTransform: 'uppercase', letterSpacing: 0.6, marginTop: 8 },
+  /** A section title above cards: same look as section, more room above, tucked close to what it labels. */
+  heading: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.muted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+    marginTop: 10,
+    marginBottom: -4,
+  },
 });
 
 const styles = StyleSheet.create({
