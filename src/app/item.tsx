@@ -97,14 +97,10 @@ export default function ItemScreen() {
     } else go();
   };
 
-  const details = (s: ScheduleItem) =>
-    [
-      interval(s, m),
-      s.lastDone
-        ? `Last done ${formatDate(s.lastDone)}${s.lastReading && m ? ` at ${formatReading(s.lastReading, m)}` : ''}`
-        : 'No record yet',
-      s.part,
-    ].filter(Boolean);
+  const meta = (e: { reading: number | null; cost: number | null; shop: string }) =>
+    [e.reading !== null && m && formatReading(e.reading, m), formatCost(e.cost), e.shop].filter(Boolean).join(' · ');
+
+  const details = (s: ScheduleItem) => [interval(s, m).replace(/^every/, 'Every'), s.part].filter(Boolean);
 
   // Open Log service with this service picked and the current reading filled in.
   const markDone = (s: ScheduleItem) =>
@@ -126,14 +122,11 @@ export default function ItemScreen() {
             {s.service}
             {history.find((e) => e.service === s.service)?.troubleshooting ? ' *' : ''}
           </Text>
-          <Text style={text.muted} numberOfLines={1}>
-            {s.lastDone
-              ? `Last: ${formatDate(s.lastDone)}${s.lastReading !== null && m ? ` at ${formatReading(s.lastReading, m)}` : ''}`
-              : 'Last: never logged'}
-          </Text>
-          <Text style={text.muted} numberOfLines={1}>
-            {nextDue(s, m) ? `Next: ${nextDue(s, m)}` : interval(s, m).replace(/^every/, 'Every')}
-          </Text>
+          {nextDue(s, m) ? (
+            <Text style={text.muted} numberOfLines={1}>
+              Next: {nextDue(s, m)}
+            </Text>
+          ) : null}
         </View>
         {(s.status === 'Overdue' || s.status === 'Due soon') && <StatusPill status={s.status} />}
         <Text style={styles.chevron}>{open === s.service ? '⌃' : '⌄'}</Text>
@@ -149,7 +142,7 @@ export default function ItemScreen() {
             const recent = history.filter((e) => e.service === s.service);
             return recent.length ? (
               <>
-                <Text style={[text.section, { marginTop: 6 }]}>Last {Math.min(3, recent.length)} times</Text>
+                <Text style={[text.section, { marginTop: 6 }]}>Recent records</Text>
                 {recent.slice(0, 3).map((e) => (
                   <Pressable
                     key={e.id || e.date}
@@ -209,11 +202,6 @@ export default function ItemScreen() {
         {dueWithinMonth ? (
           <Text style={[text.body, { color: sum.next!.status === 'Overdue' ? colors.danger : colors.warn }]}>
             {sum.next!.status === 'Overdue' ? 'Overdue' : 'Due soon'}: {sum.next!.service}, {nextDue(sum.next!, m)}
-          </Text>
-        ) : null}
-        {sum.last ? (
-          <Text style={text.body}>
-            Last: {sum.last.service}, {formatDate(sum.last.date)}
           </Text>
         ) : null}
         {sum.spent > 0 ? (
@@ -377,9 +365,6 @@ export default function ItemScreen() {
           )}
         </>
       )}
-      <Text style={text.muted}>
-        Tap a service to see its details, log it as done, or change its schedule. Tap a history entry to fix it.
-      </Text>
       {showAdd ? (
         <ScheduleForm
           meter={m}
@@ -414,9 +399,7 @@ export default function ItemScreen() {
                 <Text style={[text.body, { fontWeight: '600', flex: 1 }]}>{entryLabel(e)}</Text>
                 <Text style={text.muted}>{formatDate(e.date)}</Text>
               </Row>
-              <Text style={text.muted}>
-                {[e.reading !== null && m && formatReading(e.reading, m), formatCost(e.cost), e.shop].filter(Boolean).join(' · ')}
-              </Text>
+              {meta(e) ? <Text style={text.muted}>{meta(e)}</Text> : null}
               {e.notes ? <Text style={text.body}>{e.notes}</Text> : null}
             </Card>
           ))}
