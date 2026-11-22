@@ -3,9 +3,21 @@ import { useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Banner, Button, Chip, Field, FormScroll, Row, colors, text } from '../components/ui';
 import { addService, deleteService, updateService, useSheet } from '../lib/api';
-import { displayName, formatDate, formatReading, isISODate, parseNumber, toISODate } from '../lib/format';
+import {
+  FEE_NAMES,
+  KINDS,
+  displayName,
+  formatDate,
+  formatReading,
+  isFeeName,
+  isISODate,
+  kindOf,
+  parseNumber,
+  toISODate,
+  type Kind,
+} from '../lib/format';
 
-const OTHER = 'Repair / other…';
+const OTHER = 'Other…';
 
 export default function AddService() {
   // ?id=… edits an existing entry; otherwise this logs a new one (optionally prefilled).
@@ -15,10 +27,21 @@ export default function AddService() {
   const old = params.id ? data?.log.find((e) => e.id === params.id) : undefined;
   const scheduled = (it: string, svc: string) => !!data?.schedule.some((s) => s.item === it && s.service === svc);
   const [item, setItem] = useState(old?.item ?? params.item ?? (items.length === 1 ? items[0].name : ''));
-  const [service, setService] = useState(
-    old ? (scheduled(old.item, old.service) ? old.service : OTHER) : params.repair ? OTHER : (params.service ?? ''),
+  // Preselect the likely type: the entry's own, a fee-sounding service, Repair when asked, else Service.
+  const [kind, setKind] = useState<Kind>(
+    old && data ? kindOf(old, data) : params.repair ? 'Repair' : params.service && isFeeName(params.service) ? 'Fee' : 'Service',
   );
-  const [otherName, setOtherName] = useState(old && !scheduled(old.item, old.service) ? old.service : '');
+  /** Names offered as chips for a type: scheduled services (fee-like ones under Fee) plus common fees. */
+  const choicesFor = (it: string, k: Kind) => {
+    const sched = data ? data.schedule.filter((s) => s.item === it).map((s) => s.service) : [];
+    if (k === 'Repair') return [];
+    if (k === 'Service') return sched.filter((n) => !isFeeName(n));
+    return [...sched.filter(isFeeName), ...FEE_NAMES.filter((n) => !sched.some((x) => x.toLowerCase() === n.toLowerCase()))];
+  };
+  const startName = old?.service ?? params.service ?? '';
+  const startChips = choicesFor(old?.item ?? params.item ?? '', kind);
+  const [service, setService] = useState(startName && startChips.includes(startName) ? startName : startName ? OTHER : '');
+  const [otherName, setOtherName] = useState(startName && !startChips.includes(startName) ? startName : '');
   const [date, setDate] = useState(old?.date ?? toISODate(new Date()));
   const [reading, setReadingText] = useState(old ? (old.reading !== null ? String(old.reading) : '') : (params.reading ?? ''));
   const [cost, setCost] = useState(old?.cost != null ? String(old.cost) : '');
@@ -30,15 +53,16 @@ export default function AddService() {
 
   const selected = items.find((i) => i.name === item);
   const meter = selected?.meter ?? '';
-  const services = data ? data.schedule.filter((s) => s.item === item).map((s) => s.service) : [];
+  const choices = choicesFor(item, kind);
+  const typing = kind === 'Repair' || service === OTHER;
   const yesterday = toISODate(new Date(Date.now() - 86_400_000));
 
   async function save() {
-    const name = service === OTHER ? otherName.trim() : service;
+    const name = typing ? otherName.trim() : service;
     const r = meter ? parseNumber(reading) : null;
     const c = parseNumber(cost);
     if (!item) return setErr('Pick what was serviced.');
-    if (!name) return setErr('Pick or type the service.');
+    if (!name) return setErr(kind === 'Repair' ? 'Say what was fixed.' : `Pick or type the ${kind.toLowerCase()}.`);
     if (!isISODate(date)) return setErr('Date should look like 2026-11-20.');
     if (Number.isNaN(r) || (r !== null && r < 0)) return setErr('The reading must be a number.');
     if (Number.isNaN(c)) return setErr('Cost must be a number.');
@@ -53,7 +77,8 @@ export default function AddService() {
         cost: c,
         shop: shop.trim(),
         notes: notes.trim(),
-        ...(trouble && service !== OTHER ? { troubleshooting: true } : {}),
+        kind,
+        ...(trouble ? { troubleshooting: true } : {}),
       };
       await (old ? updateService(old.id, entry) : addService(entry));
       router.back();
@@ -73,7 +98,7 @@ export default function AddService() {
         </Banner>
       )}
 
-      <Text style={text.section}>What was serviced</Text>
+      <Text style={text.section}>For</Text>
       <Row style={styles.wrapRow}>
         {items.map((i) => (
           <Chip
@@ -90,25 +115,41 @@ export default function AddService() {
 
       {item ? (
         <>
-          <Text style={text.section}>Service</Text>
+          <Text style={text.section}>Type</Text>
           <Row style={styles.wrapRow}>
-            {[...services, OTHER].map((s) => (
-              <Chip key={s} label={s} selected={service === s} onPress={() => setService(s)} />
+            {KINDS.map((k) => (
+              <Chip
+                key={k}
+                label={k}
+                selected={kind === k}
+                onPress={() => {
+                  if (k === kind) return;
+                  // Carry a picked name over as typed text so switching type doesn't lose it.
+                  if (service && service !== OTHER) setOtherName(service);
+                  setService(k !== 'Repair' && service && service !== OTHER && choicesFor(item, k).includes(service) ? service : '');
+                  setKind(k);
+                }}
+              />
             ))}
           </Row>
-          {service === OTHER && (
+          {kind !== 'Repair' && (
+            <Row style={styles.wrapRow}>
+              {[...choices, OTHER].map((s) => (
+                <Chip key={s} label={s} selected={service === s} onPress={() => setService(s)} />
+              ))}
+            </Row>
+          )}
+          {typing && (
             <Field
-              label="What was done"
+              label={kind === 'Repair' ? 'What was fixed' : kind === 'Fee' ? 'What fee' : 'What was done'}
               value={otherName}
               onChangeText={setOtherName}
-              placeholder="e.g. Engine trouble: replaced coil pack"
+              placeholder={
+                kind === 'Repair' ? 'e.g. Engine trouble: replaced coil pack' : kind === 'Fee' ? 'e.g. Parking permit' : 'e.g. Wiper blades'
+              }
             />
           )}
-          {service === OTHER && (
-            <Text style={text.muted}>
-              One-off repairs show in the history and count toward money spent. Only scheduled names count toward due dates.
-            </Text>
-          )}
+          {typing && kind !== 'Fee' && <Text style={text.muted}>Names that match a scheduled service also count toward its due date.</Text>}
         </>
       ) : null}
 
@@ -136,7 +177,7 @@ export default function AddService() {
         </View>
       </Row>
       <Field label="Notes" value={notes} onChangeText={setNotes} multiline placeholder="Parts, oil or filter type, anything to remember" />
-      {service && service !== OTHER ? (
+      {item ? (
         <Pressable
           onPress={() => setTrouble(!trouble)}
           style={styles.check}
@@ -146,7 +187,7 @@ export default function AddService() {
           <Text style={{ fontSize: 22, color: trouble ? colors.primary : colors.muted }}>{trouble ? '☑' : '☐'}</Text>
           <View style={{ flex: 1 }}>
             <Text style={text.body}>Done while troubleshooting</Text>
-            <Text style={text.muted}>Not because it was due. Still resets the schedule; shows with a * and counts as a repair.</Text>
+            <Text style={text.muted}>Not because it was due. Shows with a *; a scheduled service still resets its schedule.</Text>
           </View>
         </Pressable>
       ) : null}

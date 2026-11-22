@@ -13,6 +13,7 @@ import {
   itemTitle,
   monthlySpending,
   nameFor,
+  isFeeName,
   kindOf,
   newestFirst,
   nextDue,
@@ -268,13 +269,16 @@ test('spending: total and last 6 months; VIN parses', () => {
   assert.equal(D.parseStore(JSON.stringify({ items: [{ name: 'Car', vin: ' 1HGCM82633A004352 ' }] })).items[0].vin, '1HGCM82633A004352');
 });
 
-test('spending by year splits routine and repairs', () => {
+test('spending by year splits services, repairs and fees', () => {
   const s = D.compute(
     D.addEntries(
       store,
       [
         { item: 'Odyssey', date: '2026-08-01', reading: null, service: 'Engine trouble', cost: 300, shop: 'Shop', notes: '' },
         { item: 'Water filter', date: '2025-06-01', reading: null, service: 'Filter change', cost: 20, shop: '', notes: '' },
+        { item: 'Odyssey', date: '2026-09-01', reading: null, service: 'Registration renewal', cost: 60, shop: '', notes: '' },
+        { item: 'Odyssey', date: '2026-09-02', reading: null, service: 'Brake inspection', cost: 10, shop: '', notes: '', kind: 'Service' },
+        { item: 'Odyssey', date: '2026-09-03', reading: null, service: 'Oil & filter', cost: 5, shop: '', notes: '', kind: 'Fee' },
       ],
       `${TODAY}T10:00:00Z`,
       () => Math.random().toString(36).slice(2, 10),
@@ -282,15 +286,22 @@ test('spending by year splits routine and repairs', () => {
     TODAY,
   );
   assert.equal(kindOf(s.log.find((e) => e.service === 'Engine trouble')!, s), 'Repair');
-  assert.equal(kindOf(s.log.find((e) => e.id === 'a1')!, s), 'Routine');
+  assert.equal(kindOf(s.log.find((e) => e.id === 'a1')!, s), 'Service');
+  assert.equal(kindOf(s.log.find((e) => e.service === 'Registration renewal')!, s), 'Fee');
+  assert.equal(isFeeName('Brake inspection'), false);
+  assert.equal(isFeeName('Property tax'), true);
   const years = spendingByYear(s);
   assert.deepEqual(
-    years.map((y) => [y.year, y.total, y.routine, y.repair]),
+    years.map((y) => [y.year, y.total, y.service, y.repair, y.fee]),
     [
-      ['2026', 345.5, 45.5, 300],
-      ['2025', 20, 20, 0],
+      ['2026', 420.5, 55.5, 300, 65],
+      ['2025', 20, 20, 0, 0],
     ],
   );
+  // kind round-trips; junk kinds are dropped
+  const rt = D.parseStore(D.serializeStore(s));
+  assert.equal(rt.log.find((e) => e.service === 'Brake inspection')!.kind, 'Service');
+  assert.equal(D.parseStore(JSON.stringify({ log: [{ item: 'A', service: 'B', kind: 'Nope' }] })).log[0].kind, undefined);
   assert.equal(years[0].items[0].item, 'Odyssey');
 });
 
@@ -305,7 +316,7 @@ test('icons and reminders', () => {
   assert.match(plan[1].title, /Water filter: Filter change due today/);
 });
 
-test('troubleshooting entries count as repairs and round-trip', () => {
+test('older troubleshooting entries count as repairs and round-trip', () => {
   const s = D.addEntries(
     store,
     [

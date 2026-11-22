@@ -315,15 +315,7 @@ export default function ItemScreen() {
         </Card>
       ) : null}
 
-      <Row>
-        <Button label="＋ Log service" onPress={() => router.push({ pathname: '/add', params: { item: it.name } })} style={{ flex: 1 }} />
-        <Button
-          label="＋ Log repair"
-          variant="outline"
-          onPress={() => router.push({ pathname: '/add', params: { item: it.name, repair: '1' } })}
-          style={{ flex: 1 }}
-        />
-      </Row>
+      <Button label="＋ Log service, repair or fee" onPress={() => router.push({ pathname: '/add', params: { item: it.name } })} />
 
       <Text style={text.section}>Schedule</Text>
       {schedule.length === 0 && <Text style={text.muted}>No scheduled services yet. Add one below.</Text>}

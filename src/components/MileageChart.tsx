@@ -2,8 +2,18 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle, Line, Polyline } from 'react-native-svg';
-import { entryLabel, formatCost, formatDate, formatReading, mileageChart, toISODate, type Meter, type SheetData } from '../lib/format';
-import { Card, Chip, Row, colors, text } from './ui';
+import {
+  entryLabel,
+  formatCost,
+  formatDate,
+  formatReading,
+  kindOf,
+  mileageChart,
+  toISODate,
+  type Meter,
+  type SheetData,
+} from '../lib/format';
+import { Card, Chip, Row, colors, kindColor, text } from './ui';
 
 type Range = '3y' | '5y' | 'All';
 
@@ -103,7 +113,7 @@ export function MileageChart({ item, data, meter }: { item: string; data: SheetD
                 <Circle key={p.id} cx={x(p.date)} cy={y(p.reading)} r={2.5} fill={colors.primary} />
               ))}
               {markers.map((mk) => {
-                const color = mk.entry.troubleshooting ? colors.danger : colors.warn;
+                const color = mk.entry.troubleshooting ? colors.danger : kindColor[kindOf(mk.entry, data)];
                 const r = radius(mk.entry.cost ?? 0);
                 const id = mk.entry.id;
                 return [
@@ -143,13 +153,14 @@ export function MileageChart({ item, data, meter }: { item: string; data: SheetD
       )}
       {sel ? (
         <Text style={text.body} onPress={() => sel.entry.id && router.push({ pathname: '/add', params: { id: sel.entry.id } })}>
-          {formatDate(sel.entry.date)} · {entryLabel(sel.entry)} · {formatCost(sel.entry.cost)}
+          {formatDate(sel.entry.date)} · {entryLabel(sel.entry)} ({kindOf(sel.entry, data)}) · {formatCost(sel.entry.cost)}
           {sel.entry.reading !== null ? ` · ${formatReading(sel.entry.reading, meter)}` : ''}
           <Text style={{ color: colors.primary }}> Open ›</Text>
         </Text>
       ) : markers.length ? (
         <Text style={styles.legend} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
-          Bigger circle = more spent · <Text style={{ color: colors.danger }}>●</Text> troubleshooting · tap for details
+          Size = cost · <Text style={{ color: kindColor.Service }}>●</Text> service <Text style={{ color: kindColor.Repair }}>●</Text>{' '}
+          repair <Text style={{ color: kindColor.Fee }}>●</Text> fee <Text style={{ color: colors.danger }}>●</Text> troubleshooting · tap
         </Text>
       ) : null}
     </Card>

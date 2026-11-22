@@ -1,7 +1,7 @@
 // The data file (upkeep.json in the private data repo) and everything worked out from it.
 // Plain TypeScript, no React Native imports, so it runs in unit tests.
 
-import type { Item, Meter, Reading, ScheduleItem, ServiceEntry, SheetData, Status } from './format';
+import type { Item, Kind, Meter, Reading, ScheduleItem, ServiceEntry, SheetData, Status } from './format';
 
 export const DATA_FILE = 'upkeep.json';
 
@@ -85,6 +85,7 @@ export function parseStore(json: string): Store {
         notes: str(r.notes),
         entered: str(r.entered),
         ...(r.troubleshooting === true ? { troubleshooting: true } : {}),
+        ...(r.kind === 'Service' || r.kind === 'Repair' || r.kind === 'Fee' ? { kind: r.kind as Kind } : {}),
       }))
       .filter((e) => e.item && e.service),
     readings: list(raw.readings)
