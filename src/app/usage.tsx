@@ -2,7 +2,7 @@ import { router } from 'expo-router';
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Card, Row, accentFor, colors, text } from '../components/ui';
 import { refresh, useSheet } from '../lib/api';
-import { formatDate, formatReading, itemIcon, perMonth } from '../lib/format';
+import { displayName, formatDate, formatReading, itemIcon, perMonth } from '../lib/format';
 
 /** Mileage / hours history for everything with a meter. */
 export default function UsageScreen() {
@@ -27,7 +27,7 @@ export default function UsageScreen() {
                 <Text style={{ fontSize: 22 }}>{itemIcon(it)}</Text>
                 <View style={{ flex: 1 }}>
                   <Text style={text.h2} numberOfLines={1}>
-                    {it.name}
+                    {displayName(it)}
                   </Text>
                   <Text style={[text.body, { fontWeight: '600' }]}>{formatReading(it.reading, m)}</Text>
                 </View>

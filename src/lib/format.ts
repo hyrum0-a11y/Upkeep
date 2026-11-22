@@ -243,3 +243,30 @@ export function spendingByYear(data: SheetData) {
 
 /** The service name as shown in lists: troubleshooting entries get an asterisk. */
 export const entryLabel = (e: ServiceEntry) => (e.troubleshooting ? `${e.service} *` : e.service);
+
+/** How an item is shown everywhere: its description (year make model), or its short name if those are blank. */
+export const displayName = (it: Item) => itemTitle(it) || it.name;
+
+/** displayName for an item referred to by its short name (log entries, schedule rows). */
+export function nameFor(name: string, data: SheetData): string {
+  const it = data.items.find((i) => i.name === name);
+  return it ? displayName(it) : name;
+}
+
+/** Spending per calendar month for the last `months` months (oldest first), split by item. */
+export function monthlySpending(data: SheetData, months: number, today: string = toISODate(new Date())) {
+  const [y, m] = today.split('-').map(Number);
+  const out: { month: string; total: number; byItem: Record<string, number> }[] = [];
+  for (let k = months - 1; k >= 0; k--) {
+    const d = new Date(y, m - 1 - k, 1);
+    out.push({ month: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`, total: 0, byItem: {} });
+  }
+  for (const e of data.log) {
+    if (!e.cost) continue;
+    const row = out.find((r) => e.date.startsWith(r.month));
+    if (!row) continue;
+    row.total += e.cost;
+    row.byItem[e.item] = (row.byItem[e.item] ?? 0) + e.cost;
+  }
+  return out;
+}

@@ -15,7 +15,9 @@ export function reminderPlan(data: SheetData, now: Date): PlannedReminder[] {
     const [y, m, d] = s.nextDate.split('-').map(Number);
     const due = new Date(y, m - 1, d, HOUR);
     const before = new Date(y, m - 1, d - DAYS_BEFORE, HOUR);
-    const name = `${s.item}: ${s.service}`;
+    const it = data.items.find((i) => i.name === s.item);
+    const label = (it && [it.year, it.make, it.model].filter(Boolean).join(' ')) || s.item;
+    const name = `${label}: ${s.service}`;
     if (before > now) out.push({ at: before.getTime(), title: `${name} due in a week`, body: `Due ${s.nextDate}.` });
     if (due > now) out.push({ at: due.getTime(), title: `${name} due today`, body: 'Open Upkeep to log it when it is done.' });
   }

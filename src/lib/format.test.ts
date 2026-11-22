@@ -11,6 +11,8 @@ import {
   itemIcon,
   entryLabel,
   itemTitle,
+  monthlySpending,
+  nameFor,
   kindOf,
   newestFirst,
   nextDue,
@@ -338,4 +340,14 @@ test('miles per month uses the last 12 months', () => {
   );
   const pm = perMonth('Car', s)!;
   assert.ok(pm > 900 && pm < 1100, String(pm)); // 10,000 mi over 10 months, not 20,000 over ~6 years
+});
+
+test('monthly spending and display names', () => {
+  const months = monthlySpending(d, 9, TODAY);
+  assert.equal(months.length, 9);
+  assert.equal(months[0].month, '2026-03');
+  assert.equal(months[8].month, '2026-11');
+  assert.equal(months.find((m) => m.month === '2026-05')!.byItem['Odyssey'], 45.5);
+  assert.equal(nameFor('Odyssey', d), '2003 Honda Odyssey EX');
+  assert.equal(nameFor('Water filter', d), 'Water filter');
 });

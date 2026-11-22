@@ -1,5 +1,5 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { formatCost, formatDate, formatReading, itemIcon, itemTitle, summarize, type Item, type SheetData } from '../lib/format';
+import { displayName, formatCost, formatDate, formatReading, itemIcon, summarize, type Item, type SheetData } from '../lib/format';
 import { accentFor, colors } from './ui';
 
 /** One compact card per vehicle or piece of equipment: its description, then the same four facts in a row. */
@@ -27,7 +27,7 @@ export function ItemRow({ it, data, onPress }: { it: Item; data: SheetData; onPr
       accessibilityRole="button"
     >
       <Text style={styles.title} numberOfLines={1}>
-        {itemIcon(it)} {itemTitle(it) || it.name}
+        {itemIcon(it)} {displayName(it)}
       </Text>
       <View style={styles.row}>
         {cells.map(([label, value, sub]) => (

@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Card, Chip, Row, colors, text } from '../components/ui';
 import { refresh, useSheet } from '../lib/api';
-import { entryLabel, formatCost, formatDate, kindOf, newestFirst, spendingByYear } from '../lib/format';
+import { entryLabel, formatCost, formatDate, kindOf, nameFor, newestFirst, spendingByYear } from '../lib/format';
 
 /** Money spent: per year, split routine vs. repairs, then per vehicle / equipment, then the entries. */
 export default function SpendingScreen() {
@@ -43,10 +43,10 @@ export default function SpendingScreen() {
           {year.items.map((it) => (
             <Card key={it.item} onPress={() => router.push({ pathname: '/item', params: { name: it.item } })}>
               <Row style={{ justifyContent: 'space-between' }}>
-                <Text style={[text.body, { fontWeight: '600', flex: 1 }]}>{it.item}</Text>
+                <Text style={[text.body, { fontWeight: '600', flex: 1 }]}>{nameFor(it.item, data)}</Text>
                 <Text style={[text.body, { fontWeight: '600' }]}>{formatCost(it.total)}</Text>
               </Row>
-              <Bar routine={it.routine} repair={it.repair} />
+              <Bar routine={it.routine} repair={it.repair} scale={it.total / year.items[0].total} />
               <Text style={text.muted}>
                 Routine {formatCost(it.routine)} · Repairs {formatCost(it.repair)}
               </Text>
@@ -63,7 +63,7 @@ export default function SpendingScreen() {
               >
                 <View style={{ flex: 1 }}>
                   <Text style={text.body}>
-                    {e.item} · {entryLabel(e)}
+                    {nameFor(e.item, data)} · {entryLabel(e)}
                   </Text>
                   <Text style={text.muted}>
                     {formatDate(e.date)} · {kindOf(e, data) === 'Routine' ? 'Routine' : 'Repair'}
@@ -73,6 +73,10 @@ export default function SpendingScreen() {
               </Pressable>
             ))}
           </Card>
+          {entries.some((e) => e.troubleshooting) && (
+            <Text style={text.muted}>* Done while troubleshooting, not because it was due. Counted as a repair.</Text>
+          )}
+          <Text style={text.muted}>Routine = a scheduled service. Repairs = anything else, plus anything done while troubleshooting.</Text>
         </>
       )}
     </ScrollView>
@@ -80,13 +84,15 @@ export default function SpendingScreen() {
 }
 
 /** A thin bar showing the routine vs. repair split. */
-function Bar({ routine, repair }: { routine: number; repair: number }) {
+function Bar({ routine, repair, scale = 1 }: { routine: number; repair: number; scale?: number }) {
   const total = routine + repair;
   if (!total) return null;
   return (
     <View style={styles.bar}>
-      {routine > 0 && <View style={{ flex: routine, backgroundColor: colors.primary }} />}
-      {repair > 0 && <View style={{ flex: repair, backgroundColor: colors.warn }} />}
+      <View style={{ width: `${Math.max(2, scale * 100)}%`, flexDirection: 'row', height: '100%' }}>
+        {routine > 0 && <View style={{ flex: routine, backgroundColor: colors.primary }} />}
+        {repair > 0 && <View style={{ flex: repair, backgroundColor: colors.warn }} />}
+      </View>
     </View>
   );
 }
