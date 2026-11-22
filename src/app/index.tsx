@@ -74,19 +74,24 @@ export default function Home() {
         <>
           <View style={styles.grid}>
             <Tile
-              icon="🚗"
+              accent="#2E86DE"
               title="Vehicles"
               detail={`${vehicles.length} ${vehicles.length === 1 ? 'vehicle' : 'vehicles'}`}
               onPress={() => router.push({ pathname: '/list', params: { type: 'Vehicle' } })}
             />
             <Tile
-              icon="🔧"
+              accent="#E67E22"
               title="Equipment"
               detail={`${equipment.length} ${equipment.length === 1 ? 'item' : 'items'}`}
               onPress={() => router.push({ pathname: '/list', params: { type: 'Equipment' } })}
             />
-            <Tile icon="💵" title="Spending" detail={`${formatCost(spent6mo)} last 6 months`} onPress={() => router.push('/spending')} />
-            <Tile icon="📈" title="Usage" detail="Mileage history" onPress={() => router.push('/usage')} />
+            <Tile
+              accent="#27AE60"
+              title="Spending"
+              detail={`$${Math.round(spent6mo).toLocaleString('en-US')} (6 mo)`}
+              onPress={() => router.push('/spending')}
+            />
+            <Tile accent="#8E44AD" title="Usage" detail="Mileage history" onPress={() => router.push('/usage')} />
           </View>
 
           <SpendChart data={data} />
@@ -166,10 +171,13 @@ function SpendChart({ data }: { data: SheetData }) {
 }
 
 /** A big square button on the home screen. */
-function Tile({ icon, title, detail, onPress }: { icon: string; title: string; detail: string; onPress: () => void }) {
+function Tile({ accent, title, detail, onPress }: { accent: string; title: string; detail: string; onPress: () => void }) {
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => [styles.tile, pressed && { opacity: 0.8 }]} accessibilityRole="button">
-      <Text style={{ fontSize: 30 }}>{icon}</Text>
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [styles.tile, { borderTopColor: accent }, pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] }]}
+      accessibilityRole="button"
+    >
       <Text style={text.h2}>{title}</Text>
       <Text style={text.muted} numberOfLines={1}>
         {detail}
@@ -180,7 +188,7 @@ function Tile({ icon, title, detail, onPress }: { icon: string; title: string; d
 
 const styles = StyleSheet.create({
   wrap: { padding: 16, gap: 12 },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   chart: { flexDirection: 'row', alignItems: 'flex-end', gap: 2, marginTop: 4 },
   col: { flex: 1, alignItems: 'center', gap: 2 },
   colTotal: { fontSize: 10, color: colors.muted },
@@ -191,10 +199,15 @@ const styles = StyleSheet.create({
     flexBasis: '47%',
     flexGrow: 1,
     backgroundColor: colors.card,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: 16,
-    gap: 4,
+    borderRadius: 12,
+    borderTopWidth: 4,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    gap: 2,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
   },
 });
