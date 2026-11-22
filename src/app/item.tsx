@@ -2,6 +2,7 @@ import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Alert, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { Banner, Button, Card, Field, FormScroll, Row, StatusPill, colors, text } from '../components/ui';
+import { MileageChart } from '../components/MileageChart';
 import { deleteReading, deleteSchedule, refresh, saveSchedule, setReading, updateReading, updateService, useSheet } from '../lib/api';
 import {
   byUrgency,
@@ -190,6 +191,7 @@ export default function ItemScreen() {
       />
       {it.vin ? <Text style={text.muted}>VIN {it.vin}</Text> : null}
       {it.notes ? <Text style={text.muted}>{it.notes}</Text> : null}
+      {m ? <MileageChart item={it.name} data={data} meter={m} /> : null}
 
       {(msg || error) && (
         <Banner tone="warn">

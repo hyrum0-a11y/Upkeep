@@ -288,3 +288,32 @@ export function readingHistory(item: string, data: SheetData): HistoryReading[] 
     }));
   return [...manual, ...fromLog].sort((a, b) => b.date.localeCompare(a.date) || b.reading - a.reading);
 }
+
+/** Mileage on a date, interpolated between the nearest readings (clamped at the ends). */
+export function mileageAt(date: string, pts: { date: string; reading: number }[]): number | null {
+  if (!pts.length) return null;
+  const t = Date.parse(date);
+  const sorted = [...pts].sort((a, b) => a.date.localeCompare(b.date));
+  if (t <= Date.parse(sorted[0].date)) return sorted[0].reading;
+  for (let i = 1; i < sorted.length; i++) {
+    const a = sorted[i - 1];
+    const b = sorted[i];
+    const ta = Date.parse(a.date);
+    const tb = Date.parse(b.date);
+    if (t <= tb) return tb === ta ? b.reading : a.reading + ((b.reading - a.reading) * (t - ta)) / (tb - ta);
+  }
+  return sorted[sorted.length - 1].reading;
+}
+
+export type ChartMarker = { entry: ServiceEntry; reading: number };
+
+/** Mileage line points (oldest first) and cost markers for an item from `start` (yyyy-mm-dd, or '' for all). */
+export function mileageChart(item: string, data: SheetData, start: string) {
+  const all = readingHistory(item, data).reverse();
+  const points = all.filter((p) => !start || p.date >= start);
+  const markers: ChartMarker[] = data.log
+    .filter((e) => e.item === item && e.cost && (!start || e.date >= start))
+    .map((e) => ({ entry: e, reading: e.reading ?? mileageAt(e.date, all) ?? 0 }))
+    .sort((a, b) => a.entry.date.localeCompare(b.entry.date));
+  return { points, markers };
+}
