@@ -1,6 +1,7 @@
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { RefreshControl, ScrollView, StyleSheet, Text } from 'react-native';
 import { ItemRow } from '../components/ItemRow';
+import { SpendChart } from '../components/SpendChart';
 import { Button, text } from '../components/ui';
 import { refresh, useSheet } from '../lib/api';
 import { isBill, isVehicle } from '../lib/format';
@@ -16,6 +17,7 @@ export default function ListScreen() {
     <ScrollView contentContainerStyle={styles.wrap} refreshControl={<RefreshControl refreshing={loading} onRefresh={refresh} />}>
       <Stack.Screen options={{ title: bills ? 'Bills' : vehicles ? 'Vehicles' : 'Equipment' }} />
       {data && items.length === 0 && <Text style={text.muted}>Nothing here yet.</Text>}
+      {data && <SpendChart data={data} category={bills ? 'Bills' : vehicles ? 'Vehicles' : 'Equipment'} />}
       {data &&
         items.map((it) => (
           <ItemRow key={it.name} it={it} data={data} onPress={() => router.push({ pathname: '/item', params: { name: it.name } })} />
