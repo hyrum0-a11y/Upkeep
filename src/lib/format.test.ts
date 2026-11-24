@@ -437,6 +437,7 @@ test('bills: fields parse, covers follow renames, entries are fees', () => {
   );
   assert.equal(itemIcon(s.items[1]), '🛡️');
   assert.equal(kindOf(s.log[0], s), 'Fee');
+  assert.deepEqual(monthlySpending(s, 1, '2026-11-21')[0].byCategory, { Bills: 100 });
   s = D.saveItem(s, { ...s.items[0], name: 'Odyssey' }, 'Van');
   assert.deepEqual(s.items[1].covers, ['Odyssey']);
   s = D.deleteItem(s, 'Odyssey');
@@ -461,6 +462,10 @@ test('fuel: MPG between full fills, readings, spending toggle, round-trip', () =
   assert.equal(readingHistory('Van', c).filter((r) => r.fuelId).length, 2);
   assert.equal(spendingByYear(c)[0]?.total ?? 0, 0);
   assert.equal(spendingByYear(c, true)[0].fuel, 104);
+  const jan = (fuel: boolean) => monthlySpending(c, 2, '2026-02-15', fuel)[0];
+  assert.equal(jan(false).total, 0);
+  assert.equal(jan(true).byCategory.Vehicles, 77);
+  assert.equal(jan(true).byItem.Van, 77);
   const back = D.parseStore(D.serializeStore(s));
   assert.equal(back.fuel.length, 4);
   assert.equal(back.fuel[1].full, false);

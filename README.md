@@ -4,8 +4,9 @@ An Android app for the family's maintenance log: vehicles and household equipmen
 
 ## What it does
 
-- **Home:** four tiles (**Vehicles**, **Equipment**, **Spending**, **Usage**), a monthly spending chart for the last 9 months (bars stacked by vehicle/equipment color), then everything overdue or due soon. **＋ Add a vehicle or equipment** at the bottom.
+- **Home:** four tiles (**Vehicles**, **Equipment**, **Spending**, **Usage**), a monthly spending chart for the last 9 months (bars stacked by **Vehicles / Equipment / Bills**, same colors as the tiles; **Include fuel** checkbox when there are fill-ups), then everything overdue or due soon. **＋ Add a vehicle or equipment** at the bottom.
 - **Vehicles / Equipment:** a compact card for each, labeled by its description (year, make, model; or its name if those are blank), with its own color and icon and the same four boxes in a row: last service, next due, miles/hours (or total spent for things without a meter), and money spent in the last 6 months. Dates show as yyyy-mm-dd. Tap one to open its page.
+- **Vehicles / Equipment / Bills lists:** the same 9-month chart at the top, stacked per item in each item's color (Vehicles has the Include fuel checkbox).
 - **Spending:** per year, the total split into **services** (regular upkeep), **repairs** (fixing a problem) and **fees** (registration, insurance, property tax, inspection, title), then per vehicle/equipment, then each entry (tap to fix it). Costs include sales tax. Entries logged before types existed are worked out: fee-sounding names are fees, troubleshooting entries are repairs, scheduled services are services, anything else is a repair.
 - **Usage:** each vehicle's current mileage (or hours), average per month, and the last 5 readings with how far it went between them.
 - **Reminders:** a phone notification a week before and on the day a date-based service comes due (9 AM, approximate). Turn off in Settings.

@@ -305,19 +305,28 @@ export function nameFor(name: string, data: SheetData): string {
 }
 
 /** Spending per calendar month for the last `months` months (oldest first), split by item. */
-export function monthlySpending(data: SheetData, months: number, today: string = toISODate(new Date())) {
+/** Which home group an item belongs to. */
+export type Category = 'Vehicles' | 'Equipment' | 'Bills';
+export const categoryOf = (it: Item): Category => (isBill(it) ? 'Bills' : isVehicle(it) ? 'Vehicles' : 'Equipment');
+
+/** Costs per month for the last `months` months (oldest first), per item and per category. Fill-ups count only with `withFuel`. */
+export function monthlySpending(data: SheetData, months: number, today: string = toISODate(new Date()), withFuel = false) {
   const [y, m] = today.split('-').map(Number);
-  const out: { month: string; total: number; byItem: Record<string, number> }[] = [];
+  const out: { month: string; total: number; byItem: Record<string, number>; byCategory: Record<string, number> }[] = [];
   for (let k = months - 1; k >= 0; k--) {
     const d = new Date(y, m - 1 - k, 1);
-    out.push({ month: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`, total: 0, byItem: {} });
+    out.push({ month: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`, total: 0, byItem: {}, byCategory: {} });
   }
-  for (const e of data.log) {
+  const rows: (ServiceEntry | FuelEntry)[] = [...data.log, ...(withFuel ? (data.fuel ?? []) : [])];
+  for (const e of rows) {
     if (!e.cost) continue;
     const row = out.find((r) => e.date.startsWith(r.month));
     if (!row) continue;
+    const it = data.items.find((i) => i.name === e.item);
+    const cat = it ? categoryOf(it) : 'Equipment';
     row.total += e.cost;
     row.byItem[e.item] = (row.byItem[e.item] ?? 0) + e.cost;
+    row.byCategory[cat] = (row.byCategory[cat] ?? 0) + e.cost;
   }
   return out;
 }
